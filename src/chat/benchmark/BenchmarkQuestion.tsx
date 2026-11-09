@@ -13,7 +13,8 @@ import { announce, cap } from '../../app/dom.ts';
 import type { QuestionRow } from '../../chart/data.ts';
 import { activeFilters, bench, clearQuestion, next, premiseOf, retry, shuffle, STYLE, WORDING, wording } from './logic.ts';
 import { useBench } from './useBench.ts';
-import { QuestionBrowser, QuestionTags } from './QuestionBrowser.tsx';
+import { QuestionTags } from './QuestionBrowser.tsx';
+import { isMac, openQuestionBrowser } from '../shell/Shortcuts.tsx';
 
 /** "Latest lab value · Physician · typos" plus the warning words ("writes", "false premise"). */
 export function QuestionCaption({ q, className }: { q: QuestionRow; className?: string }) {
@@ -50,17 +51,18 @@ function IconAction({ label, onClick, children, disabled, badge }: { label: stri
 
 export function BenchmarkQuestion({ className }: { className?: string }) {
   const b = useBench();
-  const [browsing, setBrowsing] = useState(false);
   const q = app.question;
   const busy = app.busy;
   const filtersOn = activeFilters().length;
 
   const doShuffle = () => { void shuffle().then((said) => { if (said) announce(said); }); };
+  const nextBtn = <IconAction label="Next (this patient)" onClick={() => void next()} disabled={busy}><ArrowRight /></IconAction>;
   const shuffleBtn = <IconAction label="Shuffle (any patient)" onClick={doShuffle} disabled={busy}><Shuffle /></IconAction>;
   // The one entry to the benchmark browser: labelled, since it is how to find a question by specialty, difficulty, who asks, …
   const browseBtn = (
     <Button
-      type="button" variant="ghost" size="sm" disabled={busy} onClick={() => setBrowsing(true)}
+      type="button" variant="ghost" size="sm" disabled={busy} onClick={openQuestionBrowser}
+      title={`Browse questions (${isMac ? '⌘K' : 'Ctrl+K'})`}
       aria-label={filtersOn ? `Browse questions (${filtersOn} ${filtersOn === 1 ? 'filter' : 'filters'} on)` : 'Browse questions'}
       className="relative h-7 gap-1.5 px-2 text-xs font-normal text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground dark:hover:bg-foreground/10"
     >
@@ -69,7 +71,6 @@ export function BenchmarkQuestion({ className }: { className?: string }) {
       {!!filtersOn && <span className="rounded bg-brand-soft px-1 text-[11px] leading-4 text-foreground tabular-nums">{filtersOn}</span>}
     </Button>
   );
-  const browser = <QuestionBrowser open={browsing} onOpenChange={setBrowsing} />;
   const note = b.note ? <p role="status" className="mt-1 text-xs text-muted-foreground">{b.note}</p> : null;
 
   // ---- errors ----
@@ -101,10 +102,9 @@ export function BenchmarkQuestion({ className }: { className?: string }) {
       <div className={cn('px-1', className)}>
         <div className="flex items-center gap-1">
           <span className="mr-auto text-sm text-muted-foreground">No question chosen</span>
-          {shuffleBtn}{browseBtn}
+          {shuffleBtn}{nextBtn}{browseBtn}
         </div>
         {note}
-        {browser}
       </div>
     );
   }
@@ -116,11 +116,10 @@ export function BenchmarkQuestion({ className }: { className?: string }) {
       {note}
       <div className="mt-1.5 -ml-1.5 flex items-center gap-0.5">
         {shuffleBtn}
-        <IconAction label="Next (this patient)" onClick={() => void next()} disabled={busy}><ArrowRight /></IconAction>
+        {nextBtn}
         {browseBtn}
         <IconAction label="Clear" onClick={clearQuestion} disabled={busy}><X /></IconAction>
       </div>
-      {browser}
     </div>
   );
 }

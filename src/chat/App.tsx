@@ -4,6 +4,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { TopBar } from './shell/TopBar.tsx';
 import { Conversation } from './conversation/Conversation.tsx';
 import { ChartPanelHost } from './shell/ChartPanelHost.tsx';
+import { GlobalDialogs } from './shell/Shortcuts.tsx';
 
 export function App({ load }: { load: () => Promise<void> }) {
   const [error, setError] = useState<string | null>(null);
@@ -19,6 +20,7 @@ export function App({ load }: { load: () => Promise<void> }) {
           <ChartPanelHost />
         </div>
       </div>
+      <GlobalDialogs />
     </TooltipProvider>
   );
 }

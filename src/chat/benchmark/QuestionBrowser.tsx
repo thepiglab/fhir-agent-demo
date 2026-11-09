@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import { app } from '../../app/state.ts';
+import { app, setMode } from '../../app/state.ts';
 import { cap, fmtNum, plural } from '../../app/dom.ts';
 import type { QuestionRow } from '../../chart/data.ts';
 import {
@@ -211,7 +211,7 @@ function BrowserBody({ close }: { close: () => void }) {
   async function pick(r: QuestionRow): Promise<void> {
     setChoosing(r.id);
     setError(null);
-    try { await choose(r); close(); }
+    try { setMode('benchmark'); await choose(r); close(); }
     catch (e) { setError('Could not load this question: ' + (e instanceof Error ? e.message : String(e))); }
     finally { setChoosing(null); }
   }

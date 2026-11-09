@@ -16,6 +16,7 @@ import { initModel } from '../../app/model-gate.ts';
 import '../benchmark/logic.ts';
 import { chooseCohort } from '../../chart/data.ts';
 import type { Cohort } from '../../chart/data.ts';
+import { ShortcutsButton } from './Shortcuts.tsx';
 import { cohortLine, cohortName, cohortShort, isTechnical } from './cohorts.ts';
 import { useApp } from '../store.ts';
 import { getTheme, onTheme, setTheme } from '../theme.ts';
@@ -144,6 +145,7 @@ export function TopBar() {
       <DatasetPicker />
       <div className="flex-1" />
       <ModelStatusButton />
+      <ShortcutsButton />
       <MoreMenu />
     </header>
   );

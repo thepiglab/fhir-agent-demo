@@ -9,6 +9,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { cn } from '@/lib/utils';
 import { app, setMode } from '../../app/state.ts';
 import type { Mode } from '../../app/state.ts';
+import { sentQuestion } from '../benchmark/logic.ts';
 import { BenchmarkQuestion } from '../benchmark/BenchmarkQuestion.tsx';
 import { useApp } from '../store.ts';
 import { ask, stop } from './run.ts';
@@ -34,6 +35,7 @@ export function send(text: string): boolean {
   if (app.mode === 'benchmark') {
     const q = app.question!;
     void ask(q.prompt, { label: q.label, family: q.family });
+    sentQuestion(q.id);  // the thread shows it now; the composer offers the next one
   } else {
     void ask(text, null);
   }

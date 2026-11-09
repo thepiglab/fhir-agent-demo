@@ -324,7 +324,8 @@ export async function shuffle(): Promise<string | null> {
   try {
     const all = await loadIndex();
     if (token !== seq) return null;
-    const pool = harder(all.filter((r) => matches(r) && r.id !== app.question?.id));
+    const current = app.question?.id ?? lastSent;
+    const pool = harder(all.filter((r) => matches(r) && r.id !== current));
     if (!pool.length) {
       bench.note = activeFilters().length ? 'No other question matches the filters. Clear filters to shuffle everything.' : 'No other question in this dataset.';
       changed();
@@ -350,7 +351,7 @@ export async function next(): Promise<void> {
     const all = await loadIndex();
     if (token !== seq) return;
     const rows = all.filter((r) => r.patient === p.id && matches(r)).sort(byLabel);
-    const at = rows.findIndex((r) => r.id === app.question?.id);
+    const at = rows.findIndex((r) => r.id === (app.question?.id ?? lastSent));
     const row = rows[(at + 1) % Math.max(rows.length, 1)];
     if (!row || row.id === app.question?.id) {
       bench.note = rows.length
@@ -369,6 +370,14 @@ export async function next(): Promise<void> {
 export async function choose(row: QuestionRow): Promise<void> {
   const token = ++seq;
   await apply(row, token, null);
+}
+
+/** The question last sent: Next and Shuffle continue from it once the composer is cleared. */
+let lastSent: string | null = null;
+/** A benchmark question was sent: clear it from the composer (the thread shows it) and remember it. */
+export function sentQuestion(id: string): void {
+  clearQuestion();
+  lastSent = id;
 }
 
 export function clearQuestion(): void {

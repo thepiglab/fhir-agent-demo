@@ -12,7 +12,6 @@ import { loadIndex, questionCounts } from '../benchmark/logic.ts';
 import { useBench } from '../benchmark/useBench.ts';
 import { useApp } from '../store.ts';
 
-const isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 
 /** "31 y · Female · MRN SYN-3ef1740bc8". */
 export const patientMeta = (p: ChartPatient): string =>
@@ -22,17 +21,6 @@ export const patientMeta = (p: ChartPatient): string =>
 export function PatientSwitcherButton({ className }: { className?: string }) {
   const { patient } = useApp(['patient', 'ready']);
   const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 'k' && app.patients.length) {
-        e.preventDefault();
-        setOpen((o) => !o);
-      }
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, []);
 
   if (!patient) {
     return (
@@ -49,7 +37,7 @@ export function PatientSwitcherButton({ className }: { className?: string }) {
         onClick={() => setOpen(true)}
         aria-haspopup="dialog"
         aria-label={`Patient: ${patient.name}. Switch patient`}
-        title={`Switch patient (${isMac ? '⌘K' : 'Ctrl+K'})`}
+        title="Switch patient"
         className={cn('group -mx-2 flex min-w-0 flex-col items-start rounded-lg px-2 py-1 text-left outline-none transition-colors hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring/50', className)}
       >
         <span className="flex max-w-full items-center gap-1">
