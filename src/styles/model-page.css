@@ -11,9 +11,6 @@
 }
 .lp-brand { display: inline-flex; align-items: center; gap: 10px; color: var(--text); font-weight: 600; font-size: var(--fs-md); letter-spacing: -.01em; }
 .lp-brand:hover { text-decoration: none; }
-/* The mark: a fire emoji (same as the Chart assistant's top bar). */
-.lp-mark { flex: none; font-size: 22px; line-height: 1; }
-.lp-mark::before { content: "🔥"; }
 
 .lp-main { flex: 1; width: 100%; max-width: 1040px; margin: 0 auto; padding: 0 var(--s6); }
 

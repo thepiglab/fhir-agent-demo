@@ -139,8 +139,7 @@ export function TopBar() {
   return (
     <header className="flex h-14 shrink-0 items-center gap-1 border-b bg-background px-3 sm:px-4">
       <a href="./" className="mr-1 flex items-center gap-2 rounded-md px-1 py-1 outline-none focus-visible:ring-2 focus-visible:ring-ring/50" aria-label="EHR agent: about this demo">
-        <span aria-hidden="true" className="text-[19px] leading-none">🔥</span>
-        <span className="text-[15px] font-medium max-[640px]:hidden">EHR agent</span>
+        <span className="text-[15px] font-medium">🔥<span className="max-[640px]:hidden"> EHR agent</span></span>
       </a>
       <DatasetPicker />
       <div className="flex-1" />

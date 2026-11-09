@@ -45,7 +45,7 @@ describe('picker tags', () => {
     }
   });
 
-  const exported = new URL('../public/data/natural-v0.2.3/questions.json', import.meta.url);
+  const exported = new URL('../public/data/natural-v0.2.3-heldout/questions.json', import.meta.url);
   it.skipIf(!existsSync(exported))('the export carries the v0.2.3 tags and the four new negative kinds', () => {
     const all = JSON.parse(readFileSync(exported, 'utf8')) as QuestionRow[];
     expect(all.every((r) => r.persona && r.persona !== 'keyed')).toBe(true);
