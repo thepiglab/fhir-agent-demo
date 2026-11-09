@@ -82,6 +82,8 @@ export function Composer({ text, setText, className, autoFocus }: { text: string
       className={cn('w-full rounded-3xl bg-muted transition-colors dark:bg-muted', className)}
       aria-label="Ask about the chart"
     >
+      {/* Both modes share a fixed viewport; the mode controls stay in one place. */}
+      <div className="h-40 overflow-y-auto overscroll-contain sm:h-36">
       {benchmark ? (
         <BenchmarkQuestion className="px-4 pt-3.5" />
       ) : (
@@ -99,6 +101,7 @@ export function Composer({ text, setText, className, autoFocus }: { text: string
           className="block w-full resize-none border-0 bg-transparent px-4 pt-3.5 pb-1 text-[15px] leading-6 shadow-none outline-none ring-0 placeholder:text-muted-foreground focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
         />
       )}
+      </div>
       <div className="flex items-center justify-between gap-2 px-2.5 pt-1 pb-2.5">
         <div className="flex items-center gap-0.5" role="group" aria-label="Question mode">
           {MODES.map(([mode, label, icon]) => (

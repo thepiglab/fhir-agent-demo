@@ -61,14 +61,15 @@ function EmptyState({ text, setText }: { text: string; setText: (t: string) => v
       <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col justify-center px-4 pt-6 pb-[12vh] sm:px-6">
         <div className="animate-in fade-in-0 slide-in-from-bottom-1 text-center duration-300">
           <h1 className="font-semibold text-2xl tracking-tight sm:text-[1.75rem]">What would you like to know about {firstName()}?</h1>
-          <p className="mx-auto mt-2 max-w-md text-muted-foreground text-sm leading-6">
+          <p className="mx-auto mt-2 min-h-12 max-w-md text-muted-foreground text-sm leading-6">
             {benchmark ? 'Run the question below, or shuffle for another.' : 'A 1.7B model reads this synthetic chart with FHIR searches, privately on this device.'}
           </p>
         </div>
         <ModelCard className="mx-auto mt-6 w-full max-w-xl" />
         <Composer text={text} setText={setText} autoFocus className="mt-7 animate-in fade-in-0 duration-300" />
-        {!benchmark ? (
-          <div className="mt-5 flex flex-col items-center gap-3">
+        {/* Keep this space in both modes so the centered composer never shifts. */}
+          <div inert={benchmark} aria-hidden={benchmark || undefined}
+            className={cn('mt-5 flex flex-col items-center gap-3', benchmark && 'invisible')}>
             <div className="flex flex-wrap justify-center gap-2" role="list" aria-label="Suggested questions">
               {(list ?? []).map((q) => (
                 <Suggestion key={q} suggestion={q} onClick={choose} role="listitem" variant="ghost"
@@ -88,7 +89,6 @@ function EmptyState({ text, setText }: { text: string; setText: (t: string) => v
               ))}
             </div>
           </div>
-        ) : null}
       </div>
     </div>
   );

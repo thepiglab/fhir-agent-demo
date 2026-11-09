@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Kbd, KbdGroup } from '@/components/ui/kbd';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { app } from '../../app/state.ts';
+import { app, setPanel } from '../../app/state.ts';
 import { QuestionBrowser } from '../benchmark/QuestionBrowser.tsx';
 
 export const isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
@@ -27,6 +27,7 @@ const typing = (t: EventTarget | null): boolean =>
 
 const SHORTCUTS: { keys: string[]; label: string }[] = [
   { keys: [MOD, 'K'], label: 'Browse benchmark questions' },
+  { keys: [MOD, 'B'], label: 'Toggle chart panel' },
   { keys: ['?'], label: 'Show keyboard shortcuts' },
   { keys: ['Enter'], label: 'Send the question' },
   { keys: ['Shift', 'Enter'], label: 'New line in the question' },
@@ -44,6 +45,9 @@ export function GlobalDialogs() {
         if (app.busy) return;  // choosing a question switches patient: not mid-run
         e.preventDefault();
         setOpen((o) => (o === 'browser' ? null : 'browser'));
+      } else if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'b') {
+        e.preventDefault();
+        setPanel(!app.panelOpen);
       } else if (e.key === '?' && !e.metaKey && !e.ctrlKey && !e.altKey && !typing(e.target)) {
         e.preventDefault();
         setOpen((o) => (o === 'help' ? null : 'help'));
