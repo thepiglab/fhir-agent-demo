@@ -75,6 +75,19 @@ describe.skipIf(!haveData)('chart api on the exported data', () => {
     expect((await call('/api/summary', { patient: 'nobody' })).status).toBe(404);
   });
 
+  it('returns the same resource view when production data omits the embedded record', async () => {
+    const chart = await fetchData<{ views: Record<string, Rec> }>(`charts/${patient.shard_sha}/${patient.id}.json`);
+    const key = Object.keys(chart.views).find((k) => k.startsWith('Task/'))!;
+    const before = await call('/api/resource', { patient: patient.id, ref: key });
+    const embedded = chart.views[key].resource;
+    try {
+      delete chart.views[key].resource;
+      expect(await call('/api/resource', { patient: patient.id, ref: key })).toEqual(before);
+    } finally {
+      chart.views[key].resource = embedded;
+    }
+  });
+
   it('lists the patient\'s benchmark questions with their prompts', async () => {
     const { json } = await call('/api/benchmark', { patient: patient.id });
     expect(json.tasks.length).toBeGreaterThan(5);

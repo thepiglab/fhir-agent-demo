@@ -178,7 +178,13 @@ async function resourceView(payload: Payload): Promise<unknown> {
       return { ...liveView(key, live, base, inputs), changes };
     }
   }
-  if (base) return { ...base, changes };
+  if (base) {
+    // Production charts omit exact shard duplicates; older exports still embed them.
+    if (Object.hasOwn(base, 'resource')) return { ...base, changes };
+    const resource = shard.resources.find((r) => `${r.resourceType}/${r.id}` === key);
+    if (!resource) throw new HttpError(404, `No ${key} in this patient's shard`);
+    return { ...base, resource, changes };
+  }
   const resource = shard.resources.find((r) => `${r.resourceType}/${r.id}` === key);
   if (!resource) throw new HttpError(404, `No ${key} in this patient's shard`);
   // Outside the patient's own and linked records: the card and the raw record.

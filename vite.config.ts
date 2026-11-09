@@ -6,6 +6,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import type { Connect, Plugin } from 'vite';
+import { compactChart, compactJson, shardRecords } from './scripts/optimize-data.ts';
 
 // Local weights for testing (dev and preview servers only; never part of dist/): a GGUF placed in
 // the git-ignored models/ folder is served at /models/<file>.gguf, with the byte ranges (206)
@@ -64,24 +65,36 @@ function localModels(): Plugin {
 }
 
 /**
- * Production only: gzip (level 9) every .json under dist/data/ (~250 MB, about 7× smaller), so a
- * Pages deploy syncs ~35 MB instead of ~250 MB and first loads fetch less. Every loader goes
+ * Production only: remove exact chart/shard record duplicates, compact JSON losslessly,
+ * and gzip (level 9) every .json under dist/data/ to reduce deployment and download sizes. Every loader goes
  * through src/app/datafile.ts, which asks for <file>.json.gz and decompresses it in the browser.
  * The dev server and the tests keep reading public/ as is.
  */
 function gzipData(): Plugin {
   let outDir = 'dist';
+  let publicDir = 'public';
   return {
     name: 'gzip-data',
     apply: 'build',
-    configResolved(config) { outDir = config.build.outDir; },
+    configResolved(config) { outDir = config.build.outDir; publicDir = config.publicDir; },
     closeBundle() {
       const root = join(outDir, 'data');
       if (!existsSync(root)) return;
+      const shards = new Map<string, Map<string, string>>();
       for (const name of readdirSync(root, { recursive: true }) as string[]) {
         const file = join(root, name);
         if (!file.endsWith('.json') || !statSync(file).isFile()) continue;
-        writeFileSync(`${file}.gz`, gzipSync(readFileSync(file), { level: 9 }));
+        let text = readFileSync(file, 'utf8');
+        const chart = /^charts[\\/]([^/\\]+)[\\/][^/\\]+\.json$/.exec(name);
+        if (chart) {
+          const sha = chart[1];
+          const source = join(publicDir, 'data', 'shards', `${sha}.json`);
+          if (existsSync(source)) {
+            if (!shards.has(sha)) shards.set(sha, shardRecords(readFileSync(source, 'utf8')));
+            text = compactChart(text, shards.get(sha)!);
+          }
+        }
+        writeFileSync(`${file}.gz`, gzipSync(compactJson(text), { level: 9 }));
         unlinkSync(file);
       }
     },
