@@ -1,5 +1,6 @@
 // Types for the parts of the vendored webml-community LFM3 WebGPU runtime this app calls.
-// Written for fhir-env from the runtime's own code; the runtime itself is unchanged.
+// Written for fhir-env from the runtime's own code. The runtime itself is patched in one respect:
+// `repetition_penalty` (see ./PATCHES.md).
 
 export interface LoadProgress {
   status: 'init' | 'tokenizer' | 'weights' | 'ready' | string;
@@ -50,6 +51,13 @@ export interface GenerateOptions {
   top_p?: number;
   min_p?: number;
   seed?: number;
+  /**
+   * Repetition penalty with Hugging Face / vLLM / llama.cpp semantics, applied to every token in the
+   * prompt and in the reply so far: a seen token's logit is divided by the penalty when positive and
+   * multiplied by it when not. 1 (the default) is off. Works in the greedy decode path, on models
+   * whose lm_head is the single-stage q6_k head (our Q4_K_M GGUFs); other heads throw.
+   */
+  repetition_penalty?: number;
   signal?: AbortSignal;
 }
 

@@ -25,7 +25,7 @@ import { Context1Profile, Episode as HarnessEpisode } from '../fhir/context1.ts'
 import { Context1V2Profile } from '../fhir/context1_v2.ts';
 import { loadTokenizer } from '../fhir/tokenizer.ts';
 import type { ModelReply } from '../fhir/context1.ts';
-import { LONG_CONTEXT_TOKENS, activeHarness, contextTokens } from '../model/config.ts';
+import { LONG_CONTEXT_TOKENS, MODEL_REPETITION_PENALTY, activeHarness, contextTokens } from '../model/config.ts';
 import type { Inputs, Trace as TraceBase } from './trace.ts';
 import { checkReply, cleanReply, replyEvidence, replyMessages } from './reply.ts';
 import { GUARD_TEXT, THINKING_BUDGET, thinkingGuard } from './guard.ts';
@@ -351,9 +351,11 @@ async function runAgent(payload: Payload, emit: (event: Event) => void, signal?:
   emit({ event: 'start', trace: { id: trace.id, model: trace.model, patient: trace.patient, prompt, limits: trace.limits } });
   const options: GenerateOptions = {
     tools: cfg.tools, enable_thinking: true, max_new_tokens: replyCap(),
-    // The RL eval preset, but for its repetition penalty (src/chart/guard.ts): temperature 0.1,
-    // top_k 50, and a fixed seed so a question gives the same run each time.
+    // The RL eval preset: temperature 0.1, top_k 50 and a seed, which the runtime ignores for our
+    // GGUFs (it decodes greedily, so a question gives the same run each time), and the model's own
+    // repetition penalty (MODEL_REPETITION_PENALTY; 1 = off).
     temperature: Number(payload.temperature ?? SAMPLING.temperature), top_k: SAMPLING.top_k, seed: SAMPLING.seed,
+    repetition_penalty: repetitionPenalty(),
   };
   /** Stops the run cleanly when a turn's thinking runs past its budget or loops. */
   const guarded = (stop: GuardStop) => { trace.stop_reason = stop; trace.error = GUARD_TEXT[stop]; };
@@ -627,8 +629,15 @@ async function runAgent(payload: Payload, emit: (event: Event) => void, signal?:
 /** Reply turn options: no tools, no thinking, a few sentences. */
 const REPLY_OPTIONS: GenerateOptions = { enable_thinking: false, max_new_tokens: 320, temperature: 0, top_k: 50, seed: 42 };
 
-/** The RL evals' sampling preset (less its repetition penalty, see src/chart/guard.ts). */
+/** The RL evals' sampling preset (less its repetition penalty, see src/chart/guard.ts). Note the
+ * runtime decodes greedily for these GGUFs, so temperature, top_k and seed are not applied. */
 export const SAMPLING = { temperature: 0.1, top_k: 50, seed: 42 } as const;
+
+/** MODEL_REPETITION_PENALTY (src/model/config.ts; 1 = off), or ?rep_penalty= in the dev server only (measurement; 1 turns it off). */
+function repetitionPenalty(): number {
+  const wanted = import.meta.env?.DEV && globalThis.location ? Number(new URLSearchParams(globalThis.location.search).get('rep_penalty')) : 0;
+  return Number.isFinite(wanted) && wanted > 0 ? wanted : MODEL_REPETITION_PENALTY;
+}
 
 /** One tool-free model call that writes the clinician's reply, then the checks that gate it. */
 async function writeReply(input: ReplyInput, emit: (event: Event) => void, signal?: AbortSignal | null): Promise<ReplyResult> {

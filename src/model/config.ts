@@ -10,6 +10,10 @@
 export const MODEL = 'mkieffer/LFM3-FHIR-demo-v1@8ca16a0671e2e5458531b5d7295081acf5811e2d/LFM3-FHIR-demo-v1-Q4_K_M.gguf';
 /** The pinned file, as Hugging Face reports it (X-Linked-ETag, X-Linked-Size). */
 export const MODEL_FILE = { sha256: '8ef448bc1e8cd6bc456c02294ee99eb436e54c6a43d9684a629937c248fc9cf3', bytes: 1_099_627_360 };
+/** Repetition penalty for the model above (1 = off; HF/vLLM semantics, applied on the GPU by the patched
+ * runtime). The model carries its own: SFT v0.6.1 L scored worse with 1.1 (6/12 vs 8/12), while the RL
+ * checkpoints scored better (docs/research/webgpu-repetition-penalty.md). Change it together with MODEL. */
+export const MODEL_REPETITION_PENALTY = 1;
 
 // Shown on the page next to the model. Facts about the weights MODEL points at.
 export const MODEL_FACTS = {

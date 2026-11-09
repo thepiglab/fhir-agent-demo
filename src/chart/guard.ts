@@ -1,8 +1,8 @@
-// Per-turn limits on the model's thinking, in place of the repetition penalty the RL evals ran
-// with (eval preset: temperature 0.1, top_k 50, repetition penalty 1.1). The vendored WebGPU
-// runtime picks the next token inside a fused lm_head on the GPU (top-k candidates per block, then
-// a draw), so no logits reach JavaScript to penalise; a penalty would mean changing its kernels.
-// Without it, the trained models can loop in their thinking (one LOINC code repeated until the
+// Per-turn limits on the model's thinking. The RL evals ran with a repetition penalty of 1.1; the
+// vendored WebGPU runtime picks the next token inside a fused lm_head on the GPU, and decodes our
+// GGUFs greedily. Since 2026-11-09 a patch applies a penalty there (vendor/lfm3-webgpu-pi/PATCHES.md),
+// set per model by MODEL_REPETITION_PENALTY (1 = off, as for SFT v0.6.1 L, which scored worse with
+// it). Without one, the trained models can loop in their thinking (one LOINC code repeated until the
 // reply cap, as on the HbA1c example). So each turn is watched:
 //  - a thinking budget: past THINKING_BUDGET reasoning tokens the turn is cancelled;
 //  - a loop guard: when the thinking's tail is one short piece repeated LOOP_REPEATS times in a
