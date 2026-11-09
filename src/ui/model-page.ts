@@ -80,7 +80,7 @@ let stored = 0;
 async function landing(): Promise<void> {
   themeToggle($('theme'));
   icons();
-  $<HTMLAnchorElement>('browse').href = chartHref();
+  // (the "Browse the charts without the model" link was removed from the landing page)
   let host: Host;
   try { host = await loadHost(); } catch (error) {
     fill(cta(), failureBlock('Could not load the WebGPU runtime: ' + errorText(error), () => location.reload()));
