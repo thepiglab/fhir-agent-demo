@@ -5,25 +5,25 @@
 // as "models/file.gguf" loads from this site instead: the dev and preview servers serve the
 // git-ignored models/ folder (vite.config.ts); a deployed site has no such folder.
 // The page's ?model=<path or owner/repo/file> overrides it, e.g. for local testing.
-// Pinned to the Hugging Face commit that holds SFT v0.5.1 (sha256 below), so a browser that
-// cached the previous model (GRPO v0.5, same file name) downloads the new one.
-export const MODEL = 'mkieffer/LFM3-FHIR-demo-v1@eab131b0f5c7905d864495906155a525fec46c7c/LFM3-FHIR-demo-v1-Q4_K_M.gguf';
+// Pinned to the Hugging Face commit that holds SFT v0.6.1 (sha256 below), so a browser that
+// cached the previous model (SFT v0.5.1, same file name) downloads the new one.
+export const MODEL = 'mkieffer/LFM3-FHIR-demo-v1@8ca16a0671e2e5458531b5d7295081acf5811e2d/LFM3-FHIR-demo-v1-Q4_K_M.gguf';
 /** The pinned file, as Hugging Face reports it (X-Linked-ETag, X-Linked-Size). */
-export const MODEL_FILE = { sha256: 'ed7b3686fbd9af836cb112915527c49ed504f182ba22b173e1b00ac0178fab10', bytes: 1_099_627_328 };
+export const MODEL_FILE = { sha256: '8ef448bc1e8cd6bc456c02294ee99eb436e54c6a43d9684a629937c248fc9cf3', bytes: 1_099_627_360 };
 
 // Shown on the page next to the model. Facts about the weights MODEL points at.
 export const MODEL_FACTS = {
-  name: 'LFM3 1.7B EHR agent (SFT v0.5.1)',
+  name: 'LFM3 1.7B EHR agent (SFT v0.6.1)',
   base: 'LiquidAI/LFM3-1.7B (LFM Open License)',
-  training: 'Supervised fine-tune (SFT v0.5.1) of LFM3 1.7B to search FHIR records with one tool, fhir_request, and cite the records it used',
+  training: 'Supervised fine-tune (SFT v0.6.1, best-of GPT-OSS 120B and Muse Glimmer 30B traces) of LFM3 1.7B to search FHIR records with one tool, fhir_request, and cite the records it used',
   quantization: 'llama.cpp Q4_K_M (stock tensor layout, which the WebGPU runtime requires)',
-  result: 'Natural-prompt benchmark (strict, full dev, BF16): 37.4%, up from 28.6% for the earlier GRPO v0.5.',
+  result: 'Natural-prompt benchmark v0.2.2 (strict, full dev, BF16): 29.4%; Q4_K_M 28.2% vs 29.1% BF16 on the quantization subset.',
 };
 
 export const CONTEXT_TOKENS = 16384;  // Pillar 6 budget: an L episode fits in 16K tokens
 
 // The harness the model was trained in, which the Chart assistant must run it in:
-//   'L'    the locked harness (fhir_request, results as JSON): SFT v0.5.1 and earlier;
+//   'L'    the locked harness (fhir_request, results as JSON): SFT v0.6.1 and earlier;
 //   'X16'  harness-suite profile X16 (Context-1 at 16,384 tokens: handles, prune, budget line,
 //          overflow, dedup stubs, turn ramp): LFM3 SFT v0.6.1-X16. src/fhir/context1.ts.
 //   'X16v2' X16 with exact token counts (LFM3's tokenizer), a hard cap on real prompt tokens and

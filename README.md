@@ -69,12 +69,12 @@ bun run typecheck               # strict TypeScript check (or: npm run typecheck
      Evidence and Chart changes with their details.
 
 **Model source:** `src/model/config.ts` → `MODEL`, written as `owner/repo@commit/file.gguf` on
-Hugging Face. The commit pins the exact file (SFT v0.5.1, sha256 in `MODEL_FILE`) and also keys the
+Hugging Face. The commit pins the exact file (SFT v0.6.1, sha256 in `MODEL_FILE`) and also keys the
 browser's cache, so moving the pin makes every browser download the new file; after a load, cached
 copies of the same file under other URLs are deleted. `?model=` in the page URL overrides it.
 
 **Harness:** `src/model/config.ts` → `MODEL_HARNESS`, the harness the model was trained in.
-`L` is the locked harness (one `fhir_request` tool, results as JSON), for SFT v0.5.1. `X16` is the
+`L` is the locked harness (one `fhir_request` tool, results as JSON), for SFT v0.6.1. `X16` is the
 harness-suite profile X16 (Context-1 at a 16,384-token budget: `[r3]` handles, a `prune` tool, the
 `[Token usage: N/16,384 | turn t/20]` line, overflow pruning, "already shown above" stubs, the turn
 ramp), for LFM3 SFT v0.6.1-X16; `src/fhir/context1.ts` ports it byte for byte. `X16v2` is X16 with
