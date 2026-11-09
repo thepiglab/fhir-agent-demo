@@ -58,6 +58,24 @@ export function Composer({ text, setText, className, autoFocus }: { text: string
   }, [text, app.mode]);
   useEffect(() => { if (autoFocus && window.matchMedia('(min-width: 768px)').matches) input.current?.focus(); }, [autoFocus]);
 
+  // Benchmark mode has no textarea, so Enter needs an explicit shortcut.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (app.mode !== 'benchmark' || event.defaultPrevented || event.key !== 'Enter' ||
+          event.shiftKey || event.ctrlKey || event.metaKey || event.altKey || event.repeat || event.isComposing) return;
+      // Dialogs own Enter (including the question picker); other controls retain
+      // their native activation. The selected Benchmark mode button can send.
+      if (document.querySelector('[role="dialog"], [role="alertdialog"]')) return;
+      const target = event.target instanceof Element ? event.target : null;
+      const control = target?.closest('button, a, input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="button"], [role="tab"], [role="menuitem"], [role="option"]');
+      if (control && !control.matches('[data-benchmark-mode][aria-pressed="true"]')) return;
+      event.preventDefault();
+      send(''); // Reuses model-ready, patient, selected-question and busy guards.
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
+
   const submit = () => {
     if (send(text) && app.mode === 'ask') setText('');
   };
@@ -105,7 +123,7 @@ export function Composer({ text, setText, className, autoFocus }: { text: string
       <div className="flex items-center justify-between gap-2 px-2.5 pt-1 pb-2.5">
         <div className="flex items-center gap-0.5" role="group" aria-label="Question mode">
           {MODES.map(([mode, label, icon]) => (
-            <button key={mode} type="button" aria-pressed={app.mode === mode} disabled={app.busy} onClick={() => setMode(mode)}
+            <button key={mode} type="button" data-benchmark-mode={mode === 'benchmark' ? '' : undefined} aria-pressed={app.mode === mode} disabled={app.busy} onClick={() => setMode(mode)}
               className={cn(
                 'flex h-7 items-center gap-1.5 rounded-full px-2.5 text-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-60 [&_svg]:size-3.5',
                 app.mode === mode ? 'bg-background text-foreground shadow-xs dark:bg-foreground/10' : 'text-muted-foreground hover:text-foreground',
