@@ -130,7 +130,7 @@ export function Conversation() {
       ) : (
         <>
           <Thread key={patient} className="min-h-0" initial="instant">
-            <ConversationContent className="mx-auto w-full max-w-3xl gap-12 px-4 pt-4 pb-12 sm:px-6">
+            <ConversationContent className="mx-auto w-full max-w-3xl gap-12 px-4 pt-10 pb-12 sm:px-6">
               {runs.map((run) => <RunView key={run.id} run={run} />)}
             </ConversationContent>
             <FollowNewRuns count={runs.length} />

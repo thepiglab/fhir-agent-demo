@@ -4,15 +4,16 @@ import { fmtNum, plural } from '../../app/dom.ts';
 
 const NATURAL_ABOUT = 'How physicians, nurses and front-desk staff ask, typos, vague and false-premise questions included';
 /**
- * Any natural-track release reads the same: the page's own set (dev patients), its held-out
- * patients, and an earlier release kept for the developer view (named with its version).
+ * Any natural-track release reads the same. The page's own set is the held-out patients (never
+ * trained or tuned on), named plainly. The developer view also lists the dev patients (used for
+ * tuning, so not a clean test) and earlier releases (named with their version).
  */
 function natural(c: Cohort): { name: string; short: string; about: string } | undefined {
   const m = /^natural-(v[\d.]+?)(-heldout)?$/.exec(c.id);
   if (!m) return undefined;
-  if (m[2]) return { name: 'Natural prompts, held-out patients', short: 'Held-out', about: 'Patients kept out of training and tuning' };
-  if (c.technical) return { name: `Natural prompts ${m[1]} (previous release)`, short: `Natural ${m[1]}`, about: NATURAL_ABOUT };
-  return { name: 'Natural prompts', short: 'Natural', about: NATURAL_ABOUT };
+  if (m[2]) return { name: 'Natural prompts', short: 'Natural', about: `${NATURAL_ABOUT}; patients kept out of training and tuning` };
+  if (/dev patients/i.test(c.label)) return { name: 'Natural prompts, dev patients', short: 'Dev', about: 'Patients used for tuning, so not a clean test' };
+  return { name: `Natural prompts ${m[1]} (previous release)`, short: `Natural ${m[1]}`, about: NATURAL_ABOUT };
 }
 const COHORT_TEXT: Record<string, { name: string; short: string; about: string }> = {
   'keyed-v0.6.0': { name: 'Keyed synthetic hospital', short: 'Keyed', about: 'Keyed task prompts: reads and chart changes' },

@@ -98,6 +98,9 @@ describe.skipIf(!existsSync(new URL('data/cohorts.json', PUBLIC)))('reply turn t
       return existsSync(file) ? new Response(readFileSync(file)) : new Response('missing', { status: 404 });
     });
     setDataBase(BASE + 'data/');
+    // The fixture patient is in the dev-patient set, which is listed only in the developer view.
+    const store = new Map<string, string>([['fhir-demo-dev', 'true']]);
+    vi.stubGlobal('localStorage', { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v), removeItem: (k: string) => void store.delete(k) });
     chooseCohort('natural-v0.2.3');
   });
 

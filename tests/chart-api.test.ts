@@ -38,17 +38,17 @@ describe.skipIf(!haveData)('chart api on the exported data', () => {
       return existsSync(file) ? new Response(readFileSync(file)) : new Response('missing', { status: 404 });
     });
     setDataBase(BASE + 'data/');
-    chooseCohort('natural-v0.2.3');
+    chooseCohort('natural-v0.2.3-heldout');
   });
 
   it('lists the cohort and its patients', async () => {
     const cohorts = await fetchData<{ id: string }[]>('cohorts.json');
-    expect(cohorts.map((c) => c.id)).toContain('natural-v0.2.3');
-    expect((await activeCohort()).id).toBe('natural-v0.2.3');
+    expect(cohorts.map((c) => c.id)).toContain('natural-v0.2.3-heldout');
+    expect((await activeCohort()).id).toBe('natural-v0.2.3-heldout');
     const { status, json } = await call('/api/patients');
     expect(status).toBe(200);
-    expect(json.cohort).toBe('natural-v0.2.3');
-    expect(json.patients.length).toBe(80);
+    expect(json.cohort).toBe('natural-v0.2.3-heldout');
+    expect(json.patients.length).toBe(228);
     patient = json.patients[0];
     own = patient.ref;
     expect(patient.shard_sha).toMatch(/^[0-9a-f]{12}$/);
@@ -118,13 +118,13 @@ describe.skipIf(!haveData)('chart api on the exported data', () => {
     const original = globalThis.localStorage;
     const store = new Map<string, string>();
     vi.stubGlobal('localStorage', { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v), removeItem: (k: string) => void store.delete(k) });
-    expect((await call('/api/patients')).json.cohort).toBe('natural-v0.2.3');  // developer view off
+    expect((await call('/api/patients')).json.cohort).toBe('natural-v0.2.3-heldout');  // developer view off
     localStorage.setItem('fhir-demo-dev', 'true');
     try {
       expect((await call('/api/patients')).json.cohort).toBe('natural-v0.2.2');
     } finally {
       localStorage.removeItem('fhir-demo-dev');
-      chooseCohort('natural-v0.2.3');
+      chooseCohort('natural-v0.2.3-heldout');
       vi.stubGlobal('localStorage', original);
     }
   });
