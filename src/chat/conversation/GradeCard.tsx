@@ -56,6 +56,15 @@ function brief(resource: Obj): string {
   const text = first(resource.description) || first(resource.payload) || first(resource.code) || first(resource.note) || first(resource.status);
   return `${String(resource.resourceType)}${text ? ': ' + text.slice(0, 80) : ''}`;
 }
+/** The empty search an absence rule asks for, in words: "Observation search for this patient with code 2160-0". */
+function absenceSearch(scope: Obj): string {
+  const type = String(scope.resourceType ?? 'record');
+  if (scope.identifier !== undefined) return `${type} search for exactly identifier ${String(scope.identifier)}`;
+  // v0.6: leaving the code or tag filter out only widens the search, so it counts too.
+  const filter = scope.code !== undefined ? ` (code ${String(scope.code)} or no code filter)` : scope.tag !== undefined ? ` (tag ${String(scope.tag)} or no tag filter)` : '';
+  return `${type} search for this patient${filter}`;
+}
+
 interface Need { text: string; done: boolean }
 function requiredChanges(gold: Obj, audit: { method: string; ref: string }[]): Need[] {
   const needs: Need[] = [];
@@ -173,12 +182,21 @@ export function GradeCard({ trace }: { trace: RunTrace }) {
   const changesOk = stateOk && !harmful && intact;
   const showChanges = needs.length > 0 || wrote;
 
-  const checks = [answerOk, evidenceOk, ...(showChanges ? [changesOk] : [])];
+  // Answers that something is not in the chart must be backed by an empty search over its scope.
+  const absence = b.absence ?? null;
+  const absenceOk = absence ? absence.checked : true;
+
+  const checks = [answerOk, evidenceOk, ...(showChanges ? [changesOk] : []), ...(absence ? [absenceOk] : [])];
   const right = checks.filter(Boolean).length;
+  // Every check shown passed, yet strict success says no: say so rather than look contradictory.
+  const unexplained = !passed && right === checks.length;
 
   return (
     <section className="rounded-2xl border bg-card px-4 pt-3 pb-1" aria-label={`Benchmark check: ${passed ? 'pass' : 'fail'}`}>
       {header(passed, `${right} of ${checks.length} checks`)}
+      {unexplained ? (
+        <p className="mt-2 text-muted-foreground text-xs">Every check below passed, but the run failed another scoring rule (strict success is 0).</p>
+      ) : null}
       <ul className="mt-1 divide-y">
         <Criterion name="Answer" good={answerOk} score={fields ? accuracy : answerOk ? 1 : 0}
           verdict={fields ? `${Math.round(accuracy * fieldCount)} of ${fieldCount} fields` : answerOk ? 'correct' : 'incorrect'}
@@ -227,6 +245,15 @@ export function GradeCard({ trace }: { trace: RunTrace }) {
             <Sub title="Required">{needs.map((n, i) => <li key={i} className="flex items-start gap-1.5"><span className="mt-1"><Mark good={n.done} /></span>{n.text}</li>)}</Sub>
             <Sub title="The run made">{changes.map((c, i) => <li key={i}>{c.verb} {c.noun} {c.label ? <span className="text-muted-foreground">“{c.label}” </span> : null}<span className="font-mono text-muted-foreground text-xs">{c.ref}</span></li>)}</Sub>
           </Criterion>
+        ) : null}
+
+        {absence ? (
+          <Criterion name="Absence check" good={absenceOk} score={null}
+            verdict={absenceOk ? 'proven' : 'not proven'}
+            note={absenceOk
+              ? `An empty ${absenceSearch(absence.scope)} proved it is not in the chart`
+              : `Saying it is not in the chart needs an empty ${absenceSearch(absence.scope)}, with no other filters; none of the run's searches qualified`}
+          />
         ) : null}
       </ul>
     </section>

@@ -12,7 +12,7 @@
 //     and it keeps its changes until /api/reset.
 import { FhirStore, PARAMS, episodeStore, patientRef, pyDumps, ref } from '../fhir/store.ts';
 import type { AuditEntry } from '../fhir/store.ts';
-import { effectGraded, evaluateTraining } from '../fhir/scoring.ts';
+import { absenceChecked, effectGraded, evaluateTraining } from '../fhir/scoring.ts';
 import type { TrainingOptions } from '../fhir/scoring.ts';
 import type { Rec } from '../fhir/pyrt.ts';
 import type { Tool, ChatMessage, GenerateOptions } from '../../vendor/lfm3-webgpu-pi/Lfm3ForCausalLM.js';
@@ -253,6 +253,12 @@ export interface BenchmarkResult {
   /** The episode's writes, in order (method and reference). */
   audit: { method: string; ref: string }[];
   task: { track?: string | null; persona?: string | null; style?: string | null; premise?: boolean | null; prompt: string };
+  /**
+   * The absence rule, where the task has one (answers that something is not in the chart): what an
+   * empty, bounded search must cover (type, patient, and a code, tag or identifier), and whether
+   * the run made one. Strict success needs it; the metrics carry no field of their own for it.
+   */
+  absence?: { scope: Record<string, unknown>; checked: boolean } | null;
 }
 
 /** run_agent's trace; trace.ts's finishTrace fills sources, claims and verification at the end. */
@@ -671,6 +677,10 @@ export function grade(cohort: Cohort, task: TaskRow, store: FhirStore, finalText
   };
   try {
     result.metrics = evaluateTraining(task, store, finalText, EVALUATION);
+    const scope = (task as { absence_scope?: unknown }).absence_scope;
+    result.absence = scope && typeof scope === 'object'
+      ? { scope: scope as Record<string, unknown>, checked: absenceChecked(task, store, EVALUATION.interface, EVALUATION.scoring_version) }
+      : null;
   } catch (error) {
     result.error = errorText(error);
   }
