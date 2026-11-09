@@ -134,7 +134,10 @@ export function Conversation() {
               {runs.map((run) => <RunView key={run.id} run={run} />)}
             </ConversationContent>
             <FollowNewRuns count={runs.length} />
-            <ConversationScrollButton className="bottom-3 size-8 bg-background shadow-sm" />
+            {/* Soft edges: the thread fades out under the header and above the composer instead of a hard cut. */}
+            <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 z-[1] h-10 bg-gradient-to-b from-background to-transparent" />
+            <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] h-10 bg-gradient-to-t from-background to-transparent" />
+            <ConversationScrollButton className="bottom-3 z-10 size-8 bg-background shadow-sm" />
           </Thread>
           <div className="px-3 pb-3 sm:px-4 sm:pb-4">
             <Composer text={text} setText={setText} autoFocus className="mx-auto max-w-3xl animate-in fade-in-0 slide-in-from-bottom-4 duration-200" />
