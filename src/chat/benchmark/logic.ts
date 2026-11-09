@@ -177,9 +177,9 @@ export const bench = {
   /** The cohort's questions.json, once loaded. */
   index: null as QuestionRow[] | null,
   indexError: null as string | null,
-  filters: { ...NO_FILTERS, ...storage.get<Partial<Filters>>('bench-filters', {}) } as Filters,
-  /** The question browser's scope (remembered). */
-  scope: (storage.get<Scope>('bench-scope', 'all') === 'patient' ? 'patient' : 'all') as Scope,
+  filters: { ...NO_FILTERS },
+  /** Start each visit with every patient included. */
+  scope: 'all' as Scope,
   /** The browser's sort order (remembered). */
   sort: (SORTS.some(([s]) => s === storage.get<string>('bench-sort', 'name')) ? storage.get<Sort>('bench-sort', 'name') : 'name') as Sort,
   /** A short note under the question (filters relaxed, nothing else to pick, …). */
@@ -390,7 +390,6 @@ export function clearQuestion(): void {
 
 export function setFilters(next: Filters): void {
   bench.filters = next;
-  storage.set('bench-filters', next);
   changed();
 }
 export function setSort(sort: Sort): void {
@@ -400,7 +399,6 @@ export function setSort(sort: Sort): void {
 }
 export function setScope(scope: Scope): void {
   bench.scope = scope;
-  storage.set('bench-scope', scope);
   changed();
 }
 

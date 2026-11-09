@@ -51,7 +51,8 @@ export const app = {
   patient: null as ChartPatient | null,
   /** Type names the store knows (for Type/id reference links). */
   types: new Set<string>(),
-  mode: storage.get<Mode>('mode', 'ask'),
+  // Each visit starts with free-form Ask, regardless of the previous visit's mode.
+  mode: 'ask' as Mode,
   question: null as ChosenQuestion | null,
   model: { state: 'checking' } as ModelStatus,
   dev: storage.get<boolean>('dev', false),
@@ -106,7 +107,6 @@ export function setPatient(patient: ChartPatient): void {
 export function setMode(mode: Mode): void {
   if (app.mode === mode) return;
   app.mode = mode;
-  storage.set('mode', mode);
   emit('mode', mode);
 }
 /** Choose (or clear) the benchmark question; switches patient when the question is another patient's. */

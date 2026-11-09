@@ -233,6 +233,9 @@ function BrowserBody({ close }: { close: () => void }) {
 
   const facetPanel = rows && (
     <div className="px-2 pt-3">
+      <p className="px-2 pb-3 text-xs text-muted-foreground" aria-live="polite">
+        {on ? plural(on, 'filter selected', 'filters selected') : 'No filters selected'}
+      </p>
       {facets.map((facet) => <FacetBars key={facet.key} facet={facet} rows={pool} />)}
     </div>
   );
