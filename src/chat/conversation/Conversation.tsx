@@ -6,7 +6,9 @@ import { useStickToBottomContext } from 'use-stick-to-bottom';
 import {
   Conversation as Thread, ConversationContent, ConversationScrollButton,
 } from '@/components/ai-elements/conversation';
-import { Suggestion } from '@/components/ai-elements/suggestion';
+import { ArrowUpRight, Shuffle } from 'lucide-react';
+import { sampleSuggestions, suggestionTitle } from './suggestions.ts';
+import type { Suggestion } from './suggestions.ts';
 import { cn } from '@/lib/utils';
 import { app, setMode } from '../../app/state.ts';
 import { storage } from '../../app/dom.ts';
@@ -22,30 +24,28 @@ const VOICES = [['physician', 'Physician'], ['nurse', 'Nurse'], ['clerical', 'Fr
 type Voice = (typeof VOICES)[number][0];
 const savedVoice = storage.get<string>('voice', 'physician');
 
-/** Three questions for this patient in this voice; the config's natural requests when the summary has none. */
-function useSuggestions(patient: string | undefined, voice: Voice): string[] | null {
-  const [state, setState] = useState<{ key: string; list: string[] } | null>(null);
+/** Pick a fresh set on each visit/patient/voice change; preserve it across mode switches. */
+function useSuggestions(patient: string | undefined, voice: Voice) {
+  const [state, setState] = useState<{ key: string; pool: Suggestion[]; list: Suggestion[] } | null>(null);
   const key = `${patient} ${voice}`;
   useEffect(() => {
     if (!patient) return;
     let live = true;
     void suggestionsFor(patient).then((all) => {
-      let list = all.filter((s) => s.voice === voice).map((s) => s.question);
-      if (!list.length) {
-        const index = VOICES.findIndex(([v]) => v === voice);
-        list = Object.values(app.config?.requests ?? {}).map((l) => l[index] ?? l[0]).filter((q): q is string => !!q);
-      }
-      if (live) setState({ key, list: list.slice(0, 3) });
+      const pool = all.filter(s => s.voice === voice);
+      if (live) setState({ key, pool, list: sampleSuggestions(pool) });
     });
     return () => { live = false; };
   }, [patient, voice, key]);
-  return state?.key === key ? state.list : null;
+  const current = state?.key === key ? state : null;
+  const shuffle = () => setState(prev => prev?.key === key ? { ...prev, list: sampleSuggestions(prev.pool, prev.list) } : prev);
+  return { list: current?.list ?? null, shuffle, canShuffle: (current?.pool.length ?? 0) > 3 };
 }
 
 function EmptyState({ text, setText }: { text: string; setText: (t: string) => void }) {
   useApp(['mode', 'model', 'patient', 'ready']);
   const [voice, setVoice] = useState<Voice>(VOICES.some(([v]) => v === savedVoice) ? (savedVoice as Voice) : 'physician');
-  const list = useSuggestions(app.patient?.id, voice);
+  const { list, shuffle, canShuffle } = useSuggestions(app.patient?.id, voice);
   const benchmark = app.mode === 'benchmark';
   const pick = (v: Voice) => { setVoice(v); storage.set('voice', v); };
   const choose = (q: string) => {
@@ -67,28 +67,40 @@ function EmptyState({ text, setText }: { text: string; setText: (t: string) => v
         </div>
         <ModelCard className="mx-auto mt-6 w-full max-w-xl" />
         <Composer text={text} setText={setText} autoFocus className="mt-7 animate-in fade-in-0 duration-300" />
-        {/* Keep this space in both modes so the centered composer never shifts. */}
-          <div inert={benchmark} aria-hidden={benchmark || undefined}
-            className={cn('mt-5 flex flex-col items-center gap-3', benchmark && 'invisible')}>
-            <div className="flex flex-wrap justify-center gap-2" role="list" aria-label="Suggested questions">
-              {(list ?? []).map((q) => (
-                <Suggestion key={q} suggestion={q} onClick={choose} role="listitem" variant="ghost"
-                  className="h-auto max-w-full whitespace-normal rounded-full border border-border/70 px-4 py-2 text-left font-normal text-muted-foreground text-sm hover:bg-muted hover:text-foreground" />
-              ))}
-              {list && !list.length ? <p className="text-muted-foreground text-sm">No suggestion fits this chart. Ask anything.</p> : null}
-            </div>
-            <div className="flex items-center gap-1 text-xs" role="group" aria-label="Who is asking">
-              {VOICES.map(([v, label], i) => (
-                <span key={v} className="flex items-center gap-1">
-                  {i ? <span aria-hidden="true" className="text-muted-foreground/50">·</span> : null}
-                  <button type="button" aria-pressed={voice === v} onClick={() => pick(v)}
-                    className={cn('rounded-sm px-1 py-0.5 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50', voice === v ? 'text-foreground' : 'text-muted-foreground hover:text-foreground')}>
-                    {label}
-                  </button>
-                </span>
+        {/* Reserve the same space in Benchmark, including while suggestions load. */}
+        <section inert={benchmark} aria-hidden={benchmark || undefined}
+          className={cn('mt-5', benchmark && 'invisible')} aria-label="Suggested questions">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-0.5 rounded-full bg-muted/50 p-1" role="group" aria-label="Who is asking">
+              {VOICES.map(([v, label]) => (
+                <button key={v} type="button" aria-pressed={voice === v} onClick={() => pick(v)}
+                  className={cn('min-h-10 rounded-full px-3 text-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50', voice === v ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')}>
+                  {label}
+                </button>
               ))}
             </div>
+            <button type="button" onClick={shuffle} disabled={!canShuffle} aria-label="Shuffle suggested questions"
+              className="inline-flex min-h-10 items-center gap-1.5 rounded-full px-3 text-xs text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-40">
+              <Shuffle className="size-3.5" aria-hidden="true" /> Shuffle
+            </button>
           </div>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            {[0, 1, 2].map(i => {
+              const item = list?.[i];
+              return item ? (
+                <button key={i} type="button" onClick={() => choose(item.question)} title={item.question}
+                  aria-label={`${suggestionTitle(item)}: ${item.question}`}
+                  className="group flex h-24 min-w-0 flex-col gap-2 rounded-2xl bg-muted/40 p-3.5 text-left shadow-sm ring-1 ring-inset ring-foreground/5 outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/60 sm:h-32">
+                  <span className="flex w-full items-center justify-between gap-2 text-xs font-medium text-foreground">
+                    <span className="truncate">{suggestionTitle(item)}</span>
+                    <ArrowUpRight aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 motion-reduce:transition-none" />
+                  </span>
+                  <span className="line-clamp-2 text-xs leading-5 text-muted-foreground sm:line-clamp-3">{item.question}</span>
+                </button>
+              ) : <div key={i} className="h-24 rounded-2xl bg-muted/30 sm:h-32" aria-hidden="true" />;
+            })}
+          </div>
+        </section>
       </div>
     </div>
   );
