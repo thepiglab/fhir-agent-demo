@@ -3,8 +3,6 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import { api, emit, on, setPanel } from '../../app/state.ts';
 import { replay, session, threadStore } from './run.ts';
 import type { Run } from './run.ts';
-import { buildSuggestions } from './suggestions.ts';
-import type { Suggestion, SuggestionSummary } from './suggestions.ts';
 
 /** Re-render when the run changes; returns its version (use it as a memo key). */
 export function useRun(run: Run): number {
@@ -62,11 +60,12 @@ export function useRecords(patient: string, refs: string[]): Map<string, RecordV
 }
 
 // ---------- suggestions (/api/summary) ----------
+export interface Suggestion { voice: string; question: string }
 const suggestions = new Map<string, Promise<Suggestion[]>>();
 export function suggestionsFor(patient: string): Promise<Suggestion[]> {
   let found = suggestions.get(patient);
   if (!found) {
-    found = api<SuggestionSummary>('/api/summary', { session, patient }).then(buildSuggestions).catch(() => []);
+    found = api<{ suggestions?: Suggestion[] }>('/api/summary', { session, patient }).then((s) => s.suggestions ?? []).catch(() => []);
     suggestions.set(patient, found);
   }
   return found;
