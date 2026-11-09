@@ -11,12 +11,9 @@
 }
 .lp-brand { display: inline-flex; align-items: center; gap: 10px; color: var(--text); font-weight: 600; font-size: var(--fs-md); letter-spacing: -.01em; }
 .lp-brand:hover { text-decoration: none; }
-/* The mark: a rounded tile with a small cross (a chart, a record). */
-/* The mark: a small rounded tile with a white cross (same as the Chart assistant's top bar). */
-.lp-mark { position: relative; width: 24px; height: 24px; flex: none; border-radius: 7px; background: var(--accent); }
-.lp-mark::before, .lp-mark::after { content: ""; position: absolute; left: 50%; top: 50%; background: #fff; border-radius: 1.5px; transform: translate(-50%, -50%); }
-.lp-mark::before { width: 11px; height: 2.5px; }
-.lp-mark::after { width: 2.5px; height: 11px; }
+/* The mark: a fire emoji (same as the Chart assistant's top bar). */
+.lp-mark { flex: none; font-size: 22px; line-height: 1; }
+.lp-mark::before { content: "🔥"; }
 
 .lp-main { flex: 1; width: 100%; max-width: 1040px; margin: 0 auto; padding: 0 var(--s6); }
 

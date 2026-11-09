@@ -58,6 +58,12 @@ const { handle, x16Probe } = await import('../src/chart/api.ts');
 const { chooseCohort, setDataBase } = await import('../src/chart/data.ts');
 
 const PUBLIC = new URL('../public/', import.meta.url);
+const FIXTURES = new URL('fixtures/', import.meta.url);
+/** Test-only data (the dev-patient sets, kept out of the deployed site) wins, then the site's public/. */
+const dataFile = (path: string): URL => {
+  const fixture = new URL(path, FIXTURES);
+  return existsSync(fixture) ? fixture : new URL(path, PUBLIC);
+};
 const CORPUS = new URL('parity/x16-corpus.jsonl.gz', import.meta.url);
 const BASE = 'http://demo.test/';
 const ready = existsSync(new URL('data/cohorts.json', PUBLIC)) && existsSync(CORPUS);
@@ -69,7 +75,7 @@ describe.skipIf(!ready)('Chart assistant in harness X16', () => {
   beforeAll(() => {
     vi.stubGlobal('fetch', async (input: string | URL) => {
       const url = new URL(String(input), BASE);
-      const file = new URL(url.pathname.slice(1), PUBLIC);
+      const file = dataFile(url.pathname.slice(1));
       return existsSync(file) ? new Response(readFileSync(file)) : new Response('missing', { status: 404 });
     });
     setDataBase(BASE + 'data/');
@@ -91,7 +97,7 @@ describe.skipIf(!ready)('Chart assistant in harness X16', () => {
       .filter((e) => e.cohort === 'natural-v0.2.2' && e.id.startsWith('trace/lfm3') && (e.variant === 'plain' || e.variant === 'zero'));
     // The browser ships natural v0.2.2 dev (keyed persona left out): real SFT v0.6.1-X16 eval runs.
     const sample = golden;
-    const index = JSON.parse(readFileSync(new URL('data/natural-v0.2.2/questions.json', PUBLIC), 'utf8')) as { id: string; patient: string }[];
+    const index = JSON.parse(readFileSync(dataFile('data/natural-v0.2.2/questions.json'), 'utf8')) as { id: string; patient: string }[];
     const patientOf = new Map(index.map((q) => [q.id, q.patient]));
     const failures: string[] = [];
     let checked = 0;
@@ -128,7 +134,7 @@ describe.skipIf(!ready)('Chart assistant in harness X16', () => {
   it('ends a run that outgrows the context with a "too long" message', async () => {
     const golden = gunzipSync(readFileSync(CORPUS)).toString('utf8').split('\n').filter(Boolean)
       .map((l) => pyParse<Golden>(l)).filter((e) => e.cohort === 'natural-v0.2.2' && e.id.startsWith('trace/lfm3') && e.variant === 'plain' && e.calls.length >= 3);
-    const index = JSON.parse(readFileSync(new URL('data/natural-v0.2.2/questions.json', PUBLIC), 'utf8')) as { id: string; patient: string }[];
+    const index = JSON.parse(readFileSync(dataFile('data/natural-v0.2.2/questions.json'), 'utf8')) as { id: string; patient: string }[];
     const inIndex = golden.filter((e) => index.some((q) => q.id === e.task_id));
     const chosen = inIndex[0]!;
     const patient = index.find((q) => q.id === chosen.task_id)!.patient;

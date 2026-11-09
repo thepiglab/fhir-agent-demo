@@ -4,7 +4,7 @@
 import { MODEL_HARNESS, chosenHarness, longCharts, setChosenHarness, setLongCharts } from '../../model/config.ts';
 import { replyToggle, setReplyToggle } from '../conversation/replySetting.ts';
 import { useEffect, useState } from 'react';
-import { Check, ChevronDown, Ellipsis, Plus } from 'lucide-react';
+import { Check, ChevronDown, Ellipsis } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
@@ -139,9 +139,7 @@ export function TopBar() {
   return (
     <header className="flex h-14 shrink-0 items-center gap-1 border-b bg-background px-3 sm:px-4">
       <a href="./" className="mr-1 flex items-center gap-2 rounded-md px-1 py-1 outline-none focus-visible:ring-2 focus-visible:ring-ring/50" aria-label="EHR agent: about this demo">
-        <span aria-hidden="true" className="grid size-[22px] place-items-center rounded-md bg-brand text-white">
-          <Plus className="size-3.5" strokeWidth={3} />
-        </span>
+        <span aria-hidden="true" className="text-[19px] leading-none">🔥</span>
         <span className="text-[15px] font-medium max-[640px]:hidden">EHR agent</span>
       </a>
       <DatasetPicker />

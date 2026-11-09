@@ -76,6 +76,12 @@ vi.mock('../src/chart/model-host.ts', () => ({
 const { handle } = await import('../src/chart/api.ts');
 const { chooseCohort, setDataBase } = await import('../src/chart/data.ts');
 const PUBLIC = new URL('../public/', import.meta.url);
+const FIXTURES = new URL('fixtures/', import.meta.url);
+/** Test-only data (the dev-patient sets, kept out of the deployed site) wins, then the site's public/. */
+const dataFile = (path: string): URL => {
+  const fixture = new URL(path, FIXTURES);
+  return existsSync(fixture) ? fixture : new URL(path, PUBLIC);
+};
 const BASE = 'http://demo.test/';
 const PATIENT = '4f97779f0e9245b5b4666efb';
 
@@ -94,7 +100,7 @@ async function ask(question: string, reply: string, asked = true): Promise<Recor
 describe.skipIf(!existsSync(new URL('data/cohorts.json', PUBLIC)))('reply turn through /api/ask', () => {
   beforeAll(() => {
     vi.stubGlobal('fetch', async (url: string | URL) => {
-      const file = new URL(new URL(String(url), BASE).pathname.slice(1), PUBLIC);
+      const file = dataFile(new URL(String(url), BASE).pathname.slice(1));
       return existsSync(file) ? new Response(readFileSync(file)) : new Response('missing', { status: 404 });
     });
     setDataBase(BASE + 'data/');

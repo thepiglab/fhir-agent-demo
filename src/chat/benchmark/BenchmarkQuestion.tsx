@@ -57,7 +57,18 @@ export function BenchmarkQuestion({ className }: { className?: string }) {
 
   const doShuffle = () => { void shuffle().then((said) => { if (said) announce(said); }); };
   const shuffleBtn = <IconAction label="Shuffle (any patient)" onClick={doShuffle} disabled={busy}><Shuffle /></IconAction>;
-  const browseBtn = <IconAction label="Browse questions" onClick={() => setBrowsing(true)} disabled={busy} badge={filtersOn}><ListFilter /></IconAction>;
+  // The one entry to the benchmark browser: labelled, since it is how to find a question by specialty, difficulty, who asks, …
+  const browseBtn = (
+    <Button
+      type="button" variant="ghost" size="sm" disabled={busy} onClick={() => setBrowsing(true)}
+      aria-label={filtersOn ? `Browse questions (${filtersOn} ${filtersOn === 1 ? 'filter' : 'filters'} on)` : 'Browse questions'}
+      className="relative h-7 gap-1.5 px-2 text-xs font-normal text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground dark:hover:bg-foreground/10"
+    >
+      <ListFilter className="size-3.5" aria-hidden="true" />
+      Browse
+      {!!filtersOn && <span className="rounded bg-brand-soft px-1 text-[11px] leading-4 text-foreground tabular-nums">{filtersOn}</span>}
+    </Button>
+  );
   const browser = <QuestionBrowser open={browsing} onOpenChange={setBrowsing} />;
   const note = b.note ? <p role="status" className="mt-1 text-xs text-muted-foreground">{b.note}</p> : null;
 

@@ -12,6 +12,12 @@ import { episodeStore } from '../src/fhir/store.ts';
 import type { Rec } from '../src/fhir/pyrt.ts';
 
 const PUBLIC = new URL('../public/', import.meta.url);
+const FIXTURES = new URL('fixtures/', import.meta.url);
+/** Test-only data (the dev-patient sets, kept out of the deployed site) wins, then the site's public/. */
+const dataFile = (path: string): URL => {
+  const fixture = new URL(path, FIXTURES);
+  return existsSync(fixture) ? fixture : new URL(path, PUBLIC);
+};
 const BASE = 'http://demo.test/';
 const haveData = existsSync(new URL('data/cohorts.json', PUBLIC));
 
@@ -34,7 +40,7 @@ describe.skipIf(!haveData)('chart api on the exported data', () => {
   beforeAll(() => {
     vi.stubGlobal('fetch', async (input: string | URL) => {
       const url = new URL(String(input), BASE);
-      const file = new URL(url.pathname.slice(1), PUBLIC);
+      const file = dataFile(url.pathname.slice(1));
       return existsSync(file) ? new Response(readFileSync(file)) : new Response('missing', { status: 404 });
     });
     setDataBase(BASE + 'data/');

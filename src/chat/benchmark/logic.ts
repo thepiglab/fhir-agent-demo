@@ -25,34 +25,87 @@ export interface Filters {
   effect: string;    // read | write
   difficulty: string; // release tags (natural v0.2.3 on); empty where a release has none
   specialty: string;
+  subspecialty: string;
   negative: string;   // developer view: a negative kind, or "new" / "any"
 }
-export const NO_FILTERS: Filters = { family: '', purpose: '', task_type: '', wording: '', style: '', premise: '', effect: '', difficulty: '', specialty: '', negative: '' };
+export const NO_FILTERS: Filters = { family: '', purpose: '', task_type: '', wording: '', style: '', premise: '', effect: '', difficulty: '', specialty: '', subspecialty: '', negative: '' };
 
 export const WORDING: Record<string, string> = { physician: 'Physician', nurse: 'Nurse', clerical: 'Front desk', keyed: 'Keyed' };
 export const STYLE: Record<string, string> = { clean: 'Clean', typos: 'Typos', vague: 'Vague' };
-export const PREMISE: Record<string, string> = { true: 'True premise', false: 'False premise' };
+export const PREMISE: Record<string, string> = { true: 'True premise', false: 'False premise', negative: 'True premise, answer is no' };
 
 export const wording = (r: QuestionRow): string => r.persona || 'keyed';
 export const premiseOf = (r: QuestionRow): string => (r.premise === null || r.premise === undefined ? '' : String(r.premise));
 
+/**
+ * The premise as the browser groups it: a false premise, a true premise whose right answer is
+ * "no" / "not in the chart" (a negative), or a plain true premise. Empty where the release has none.
+ */
+export function premiseKind(r: QuestionRow): string {
+  const p = premiseOf(r);
+  if (p === 'false') return 'false';
+  if (p === 'true') return r.negative ? 'negative' : 'true';
+  return p;
+}
+
+/** A row's value for one facet ('' where it has none). */
+export function facetValue(r: QuestionRow, key: keyof Filters): string {
+  switch (key) {
+    case 'wording': return wording(r);
+    case 'premise': return premiseKind(r);
+    case 'effect': return r.read_only ? 'read' : 'write';
+    case 'negative': return r.negative ? r.negative_kind ?? '' : '';
+    default: return r[key] ?? '';
+  }
+}
+
+const FILTER_KEYS = Object.keys(NO_FILTERS) as (keyof Filters)[];
+
 export function matches(r: QuestionRow, f: Filters = bench.filters): boolean {
-  if (f.family && r.family !== f.family) return false;
-  if (f.purpose && r.purpose !== f.purpose) return false;
-  if (f.task_type && r.task_type !== f.task_type) return false;
-  if (f.wording && wording(r) !== f.wording) return false;
-  if (f.style && r.style !== f.style) return false;
-  if (f.premise && premiseOf(r) !== f.premise) return false;
-  if (f.effect === 'read' && !r.read_only) return false;
-  if (f.effect === 'write' && r.read_only) return false;
-  if (f.difficulty && r.difficulty !== f.difficulty) return false;
-  if (f.specialty && r.specialty !== f.specialty) return false;
+  for (const key of FILTER_KEYS) {
+    const want = f[key];
+    if (!want || key === 'negative') continue;
+    if (facetValue(r, key) !== want) return false;
+  }
   // The negatives filter is a developer-view one: off while that view is.
   const neg = app.dev ? f.negative : '';
   if (neg === 'any' && !r.negative) return false;
   if (neg === 'new' && !r.negative_new) return false;
   if (neg && neg !== 'any' && neg !== 'new' && r.negative_kind !== neg) return false;
   return true;
+}
+
+/**
+ * Per-facet counts for the browser's distribution bars: for each value, how many rows match every
+ * other active filter (so the bars show what choosing that value would leave).
+ */
+export function facetCounts(rows: QuestionRow[], key: keyof Filters, f: Filters = bench.filters): Map<string, number> {
+  const others = { ...f, [key]: '' };
+  const counts = new Map<string, number>();
+  for (const r of rows) {
+    if (!matches(r, others)) continue;
+    const v = facetValue(r, key);
+    if (v) counts.set(v, (counts.get(v) ?? 0) + 1);
+  }
+  return counts;
+}
+
+export type Sort = 'name' | 'easiest' | 'hardest' | 'specialty' | 'patient';
+export const SORTS: [Sort, string][] = [['name', 'Name'], ['easiest', 'Easiest first'], ['hardest', 'Hardest first'], ['specialty', 'Specialty'], ['patient', 'Patient']];
+const DIFFICULTY_ORDER = ['easy', 'medium', 'hard', 'expert'];
+const rank = (r: QuestionRow): number => { const i = DIFFICULTY_ORDER.indexOf(r.difficulty ?? ''); return i < 0 ? 99 : i; };
+
+/** The browser's sort orders; ties fall back to name order. */
+export function sortRows(rows: QuestionRow[], sort: Sort, patientName: (id: string) => string = (id) => patientById(id)?.name ?? id): QuestionRow[] {
+  const out = [...rows];
+  const cmp: Record<Sort, (a: QuestionRow, b: QuestionRow) => number> = {
+    name: () => 0,
+    easiest: (a, b) => rank(a) - rank(b),
+    hardest: (a, b) => (rank(b) === 99 ? -1 : rank(b)) - (rank(a) === 99 ? -1 : rank(a)),
+    specialty: (a, b) => (a.specialty ?? '\uffff').localeCompare(b.specialty ?? '\uffff') || (a.subspecialty ?? '').localeCompare(b.subspecialty ?? ''),
+    patient: (a, b) => patientName(a.patient).localeCompare(patientName(b.patient)),
+  };
+  return out.sort((a, b) => cmp[sort](a, b) || byLabel(a, b));
 }
 
 /** Difficulties a random pick prefers when no difficulty filter is set. */
@@ -78,10 +131,11 @@ function filterSummary(): string {
   if (f.task_type) words.push(f.task_type);
   if (f.wording) words.push((WORDING[f.wording] ?? f.wording).toLowerCase());
   if (f.style) words.push(f.style);
-  if (f.premise) words.push(`${f.premise}-premise`);
+  if (f.premise) words.push(f.premise === 'negative' ? 'answer-is-no' : `${f.premise}-premise`);
   if (f.effect) words.push(f.effect === 'read' ? 'read-only' : 'chart-change');
   if (f.difficulty) words.push(f.difficulty);
   if (f.specialty) words.push(f.specialty);
+  if (f.subspecialty) words.push(f.subspecialty);
   if (f.negative && app.dev) words.push(f.negative === 'any' ? 'negative' : f.negative === 'new' ? 'new-negative' : f.negative);
   return words.join(', ');
 }
@@ -125,7 +179,9 @@ export const bench = {
   indexError: null as string | null,
   filters: { ...NO_FILTERS, ...storage.get<Partial<Filters>>('bench-filters', {}) } as Filters,
   /** The question browser's scope (remembered). */
-  scope: (storage.get<Scope>('bench-scope', 'patient') === 'all' ? 'all' : 'patient') as Scope,
+  scope: (storage.get<Scope>('bench-scope', 'all') === 'patient' ? 'patient' : 'all') as Scope,
+  /** The browser's sort order (remembered). */
+  sort: (SORTS.some(([s]) => s === storage.get<string>('bench-sort', 'name')) ? storage.get<Sort>('bench-sort', 'name') : 'name') as Sort,
   /** A short note under the question (filters relaxed, nothing else to pick, …). */
   note: null as string | null,
   /** Choosing a question (loading its prompt). */
@@ -183,6 +239,11 @@ export function loadPrompts(patientId: string): Promise<Map<string, string>> {
     promptCache.set(patientId, entry);
   }
   return entry;
+}
+/** Every patient's prompts, for searching the question text (loaded on the first search). */
+export async function loadAllPrompts(onEach: (patient: string, prompts: Map<string, string>) => void): Promise<void> {
+  const ids = [...new Set((await loadIndex()).map((r) => r.patient))];
+  await Promise.all(ids.map((id) => loadPrompts(id).then((m) => onEach(id, m)).catch(() => {})));
 }
 async function chosen(row: QuestionRow): Promise<ChosenQuestion> {
   const prompt = (await loadPrompts(row.patient)).get(row.id);
@@ -321,6 +382,11 @@ export function clearQuestion(): void {
 export function setFilters(next: Filters): void {
   bench.filters = next;
   storage.set('bench-filters', next);
+  changed();
+}
+export function setSort(sort: Sort): void {
+  bench.sort = sort;
+  storage.set('bench-sort', sort);
   changed();
 }
 export function setScope(scope: Scope): void {
