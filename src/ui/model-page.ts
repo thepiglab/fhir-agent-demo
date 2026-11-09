@@ -6,6 +6,7 @@
 // ?simple=1 keeps the self-test page instead: its own small chart and ask cards, whose agent loop
 // has LFM3 call fhir_request against the in-browser FhirStore. scripts/bench_chrome.ts drives it
 // (with &autoload=1) through window.demoState, window.demoMetrics, window.runBench and #model-state.
+import { fetchDataJson, fetchDataText } from '../app/datafile.ts';
 import '../app/tokens.css';
 import '../styles/model-page.css';
 import { MODEL_FACTS, MODEL_FILE } from '../model/config.ts';
@@ -596,8 +597,8 @@ async function simple(): Promise<void> {
   document.body.append(template.content.cloneNode(true));
   const host = await loadHost();
   const [contract, chart] = await Promise.all([
-    fetch('data/contract.json').then((r) => r.json() as Promise<Contract>),
-    fetch('data/patient.json').then((r) => r.text()).then((t) => pyParse(t) as unknown as Chart),
+    fetchDataJson<Contract>('data/contract.json'),
+    fetchDataText('data/patient.json').then((r) => pyParse(r.text) as unknown as Chart),
   ]);
   state.contract = contract;
   loadChart(chart);

@@ -2,6 +2,7 @@
 // resource contracts. Python loads them from disk on first use; the browser cannot read files
 // synchronously, so the page fetches them and passes them to setEnvData once before the store
 // is used (tests read them from disk). Anything that needs them before that fails loudly.
+import { fetchDataJson } from '../app/datafile.ts';
 import { Draft6Schema } from './jsonschema.ts';
 import { isDict, type Rec } from './pyrt.ts';
 
@@ -27,11 +28,7 @@ export const contractCatalog = (): Rec => contracts ?? unset();
 /** Browser: fetch the two files from `base` (public/data/env/) and install them. */
 export async function loadEnvData(base = 'data/env/'): Promise<void> {
   const [schema, contracts] = await Promise.all(
-    ['fhir.schema.json', 'resource_contracts.json'].map(async (name) => {
-      const response = await fetch(base + name);
-      if (!response.ok) throw new Error(`cannot load ${base}${name}: ${response.status}`);
-      return response.json() as Promise<unknown>;
-    }),
+    ['fhir.schema.json', 'resource_contracts.json'].map((name) => fetchDataJson<unknown>(base + name)),
   );
   setEnvData({ schema, contracts });
 }

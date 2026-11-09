@@ -11,6 +11,7 @@
 // /blue/cai5724/wkieffer/fhir/sft/sft-v0.6.1-x16-natural022-20261107-195916Z-lfm3-1.7b/sft/model/):
 // the same vocabulary, merges, added tokens and pipeline, formatted differently; it gives the same
 // count on every golden text.
+import { fetchDataJson } from '../app/datafile.ts';
 
 /** GPT-2's bytes_to_unicode: every byte as a printable character. */
 const BYTE_CHAR: string[] = (() => {
@@ -117,7 +118,7 @@ let shared: Promise<Lfm3Tokenizer> | null = null;
 /** The tokenizer, loaded once from public/data/tokenizer/ (about 5.5 MB, 1.8 MB compressed). */
 export function loadTokenizer(base: string | URL): Promise<Lfm3Tokenizer> {
   if (!shared) {
-    const get = async <T>(name: string) => (await (await fetch(new URL(name, base))).json()) as T;
+    const get = <T>(name: string) => fetchDataJson<T>(new URL(name, base));
     shared = Promise.all([get<string[]>('vocab.json'), get<string[]>('merges.json'), get<TokenizerData['added']>('added.json')])
       .then(([vocab, merges, added]) => new Lfm3Tokenizer({ vocab, merges, added }));
     shared.catch(() => { shared = null; });

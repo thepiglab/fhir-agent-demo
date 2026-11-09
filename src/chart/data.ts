@@ -11,6 +11,7 @@
 //   env/                             the FHIR JSON schema and resource contracts (setEnvData)
 
 import { loadEnvData, pyParse } from '../fhir/fhir_store.ts';
+import { fetchDataText } from '../app/datafile.ts';
 import type { FhirResource } from '../types.ts';
 
 export interface Cohort {
@@ -110,9 +111,8 @@ const cache = new Map<string, Promise<unknown>>();
 export function fetchData<T>(path: string): Promise<T> {
   let entry = cache.get(path);
   if (!entry) {
-    entry = fetch(dataUrl(path)).then(async (r) => {
-      if (!r.ok) throw new Error(r.status === 404 ? missing(path) : `${path}: ${r.status}`);
-      const text = await r.text();
+    entry = fetchDataText(dataUrl(path)).then(({ ok, status, text }) => {
+      if (!ok) throw new Error(status === 404 ? missing(path) : `${path}: ${status}`);
       // Static hosts and the dev server answer a missing file with the HTML page itself.
       if (/^\s*</.test(text)) throw new Error(missing(path));
       return pyParse(text);

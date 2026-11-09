@@ -1,4 +1,6 @@
-import { createReadStream, statSync } from 'node:fs';
+import { createReadStream, existsSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { gzipSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
@@ -61,10 +63,35 @@ function localModels(): Plugin {
   };
 }
 
+/**
+ * Production only: gzip (level 9) every .json under dist/data/ (~250 MB, about 7× smaller), so a
+ * Pages deploy syncs ~35 MB instead of ~250 MB and first loads fetch less. Every loader goes
+ * through src/app/datafile.ts, which asks for <file>.json.gz and decompresses it in the browser.
+ * The dev server and the tests keep reading public/ as is.
+ */
+function gzipData(): Plugin {
+  let outDir = 'dist';
+  return {
+    name: 'gzip-data',
+    apply: 'build',
+    configResolved(config) { outDir = config.build.outDir; },
+    closeBundle() {
+      const root = join(outDir, 'data');
+      if (!existsSync(root)) return;
+      for (const name of readdirSync(root, { recursive: true }) as string[]) {
+        const file = join(root, name);
+        if (!file.endsWith('.json') || !statSync(file).isFile()) continue;
+        writeFileSync(`${file}.gz`, gzipSync(readFileSync(file), { level: 9 }));
+        unlinkSync(file);
+      }
+    },
+  };
+}
+
 export default defineConfig({
   // Relative asset URLs, so dist/ works from any path (a Pages project, a subfolder, a Space).
   base: './',
-  plugins: [react(), tailwindcss(), localModels()],
+  plugins: [react(), tailwindcss(), localModels(), gzipData()],
   // shadcn/ui and AI Elements import from "@/…" (src/).
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
   build: {

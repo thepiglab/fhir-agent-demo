@@ -40,3 +40,6 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+        with:
+          # The site is ~250 MB of chart data; Pages' file sync can outlast the 10-minute default.
+          timeout: 1800000
