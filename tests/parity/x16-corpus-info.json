@@ -1,0 +1,28 @@
+{
+  "episodes": 928,
+  "harness": {
+    "commit": "647729c0f7cd3a465ff62fe8a4e53a48347ebfec",
+    "package": "environments/fhir_query_rl/fhir_suite_harness",
+    "files": {
+      "profiles/context1.py": "4f7288bfd51a85d0993ea5c5d0bb575520861c19531fd17380368d8cf8c39933",
+      "core.py": "1e615cac13dae6cf4743d2b6443f730434c0a5388516d0657abcf5944465162a",
+      "exposure.py": "a14a7bb6a0148104a673db8a4db7691a84485d9b6d447208d900419a7ff5c41c",
+      "profiles/__init__.py": "fe9a6854ab60d60b4d1dc6ab58e6f33b8a5ec1632c92b63ef440079c463279f8"
+    }
+  },
+  "cohorts": [
+    "natural-v0.2.1",
+    "natural-v0.2.2"
+  ],
+  "recorded_x16": 40,
+  "by_variant": {
+    "plain": 232,
+    "prune": 232,
+    "tight": 232,
+    "zero": 232
+  },
+  "overflows": 208,
+  "hard_cutoffs": 243,
+  "per_family": 2,
+  "seed": 0
+}

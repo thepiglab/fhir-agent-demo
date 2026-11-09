@@ -1,0 +1,13 @@
+Workspace interface and visual assets: Victor, Apache-2.0.
+Pi terminal components and logo: Earendil Works / Pi 0.85.1, MIT.
+Virtual shell: just-bash 3.4.2, Vercel, Apache-2.0.
+File icons: Seti UI, Jesse Weed and contributors, MIT.
+
+Inference and agent: supplied Lfm3ForCausalLM.js and agent.js.
+The inference library includes Hugging Face tokenization and Jinja templating.
+Model: Liquid AI LFM3-1.7B GGUF. Weights are downloaded separately and
+remain subject to their repository terms.
+
+The interface has been modified for LFM3 loading, quantization selection,
+streaming, and workspace persistence. Dependency license texts and icon
+attributions are included in licenses/.

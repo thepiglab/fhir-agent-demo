@@ -1,0 +1,83 @@
+import { createReadStream, statSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
+import type { Connect, Plugin } from 'vite';
+
+// Local weights for testing (dev and preview servers only; never part of dist/): a GGUF placed in
+// the git-ignored models/ folder is served at /models/<file>.gguf, with the byte ranges (206)
+// that the WebGPU runtime reads. Use it as /?model=models/<file>.gguf.
+const MODELS = fileURLToPath(new URL('./models/', import.meta.url));
+
+function localModels(): Plugin {
+  const handler: Connect.NextHandleFunction = (req, res, next) => {
+    const match = /^\/models\/([^/\\]+\.gguf)$/i.exec(new URL(req.url ?? '/', 'http://localhost').pathname);
+    if (!match || (req.method !== 'GET' && req.method !== 'HEAD')) return next();
+    const name = decodeURIComponent(match[1]);
+    let size: number;
+    try {
+      if (name.startsWith('.') || name.includes('/')) throw new Error('not a model file');
+      const stats = statSync(MODELS + name);
+      if (!stats.isFile()) throw new Error('not a file');
+      size = stats.size;
+    } catch {
+      res.statusCode = 404;
+      res.end('No such file in models/');
+      return;
+    }
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Cache-Control', 'no-store');
+    let start = 0, end = size - 1;
+    const range = req.headers.range;
+    if (range) {
+      // bytes=a-b, bytes=a- or bytes=-n (the last n bytes); one range only.
+      const m = /^bytes=(\d*)-(\d*)$/.exec(range.trim());
+      if (m && (m[1] || m[2])) {
+        if (m[1]) { start = Number(m[1]); if (m[2]) end = Math.min(Number(m[2]), size - 1); }
+        else { start = Math.max(size - Number(m[2]), 0); }
+      }
+      if (!m || !(m[1] || m[2]) || start > end || start >= size) {
+        res.statusCode = 416;
+        res.setHeader('Content-Range', `bytes */${size}`);
+        res.end();
+        return;
+      }
+      res.statusCode = 206;
+      res.setHeader('Content-Range', `bytes ${start}-${end}/${size}`);
+    }
+    res.setHeader('Content-Length', String(end - start + 1));
+    if (req.method === 'HEAD') { res.end(); return; }
+    const stream = createReadStream(MODELS + name, { start, end });
+    stream.on('error', () => res.destroy());
+    res.on('close', () => stream.destroy());
+    stream.pipe(res);
+  };
+  return {
+    name: 'local-models',
+    configureServer(server) { server.middlewares.use(handler); },
+    configurePreviewServer(server) { server.middlewares.use(handler); },
+  };
+}
+
+export default defineConfig({
+  // Relative asset URLs, so dist/ works from any path (a Pages project, a subfolder, a Space).
+  base: './',
+  plugins: [react(), tailwindcss(), localModels()],
+  // shadcn/ui and AI Elements import from "@/…" (src/).
+  resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
+  build: {
+    target: 'es2022',
+    // The vendored WebGPU runtime is one ~1 MB module.
+    chunkSizeWarningLimit: 1500,
+    rollupOptions: {
+      // Two pages, resolved from the project root.
+      input: { main: 'index.html', chart: 'chart.html' },
+      // Keep the WebGPU runtime in its own chunk, cached apart from app code.
+      output: { manualChunks: (id: string) => (id.includes('/vendor/lfm3-webgpu-pi/') ? 'lfm3-runtime' : undefined) },
+    },
+  },
+  server: { port: 5173 },
+  preview: { port: 4173 },
+});

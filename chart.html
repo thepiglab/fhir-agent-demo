@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Chart assistant · private, on-device EHR agent</title>
+<script>
+  // Apply the saved theme before first paint (no flash). src/chat/theme.ts keeps it in sync.
+  try {
+    const t = JSON.parse(localStorage.getItem('fhir-demo-theme') || '"auto"');
+    const dark = t === 'dark' || (t === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
+    document.documentElement.classList.toggle('dark', dark);
+    if (t !== 'auto') document.documentElement.dataset.theme = t;
+  } catch (e) { /* storage unavailable */ }
+</script>
+</head>
+<body>
+<div id="announcer" class="sr-only" aria-live="polite"></div>
+<div id="root"></div>
+<script type="module" src="./src/chat/main.tsx"></script>
+</body>
+</html>

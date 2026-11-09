@@ -1,0 +1,340 @@
+/* Design tokens and shared components for the plain-TypeScript parts: the chart panel (.cp, inside
+ * the React Chart assistant) and the landing page (body.landing-page / body.simple-page).
+ *
+ * One palette. Every colour here comes from the shadcn theme variables in src/styles/app.css
+ * (--background, --card, --foreground, --muted-foreground, --border, --brand, --success, …), so
+ * light and dark follow the `.dark` class there. The landing page does not load app.css: for it,
+ * section 1 repeats the same palette at zero specificity (app.css's own rules always win), switched
+ * by [data-theme] or prefers-color-scheme.
+ *
+ * Nothing here touches the React UI: tokens and element rules are scoped to the three roots below
+ * with :where() (no specificity), keyframes are prefixed (tk-), and the token names that clash
+ * with shadcn (--muted, --accent, --ring) are only redefined inside those roots. */
+
+/* ---------- 1. palette fallback for pages without app.css (keep in step with app.css) ---------- */
+:where(:root) {
+  color-scheme: light;
+  --background: oklch(0.985 0.002 75);
+  --foreground: oklch(0.22 0.005 60);
+  --card: oklch(1 0 0);
+  --popover: oklch(1 0 0);
+  --primary: oklch(0.24 0.006 60);
+  --primary-foreground: oklch(0.985 0.002 75);
+  --secondary: oklch(0.955 0.003 75);
+  --muted: oklch(0.955 0.003 75);
+  --muted-foreground: oklch(0.53 0.008 60);
+  --accent: oklch(0.945 0.004 75);
+  --destructive: oklch(0.58 0.2 27);
+  --border: oklch(0.91 0.004 75);
+  --input: oklch(0.91 0.004 75);
+  --ring: oklch(0.7 0.01 60);
+  --brand: oklch(0.55 0.17 262);
+  --brand-soft: oklch(0.95 0.03 262);
+  --success: oklch(0.55 0.13 155);
+  --warning: oklch(0.62 0.13 70);
+}
+:where(:root.dark, :root[data-theme="dark"]) {
+  color-scheme: dark;
+  --background: oklch(0.19 0.003 60);
+  --foreground: oklch(0.93 0.004 75);
+  --card: oklch(0.22 0.003 60);
+  --popover: oklch(0.23 0.003 60);
+  --primary: oklch(0.93 0.004 75);
+  --primary-foreground: oklch(0.2 0.003 60);
+  --secondary: oklch(0.26 0.003 60);
+  --muted: oklch(0.26 0.003 60);
+  --muted-foreground: oklch(0.68 0.006 70);
+  --accent: oklch(0.27 0.003 60);
+  --destructive: oklch(0.68 0.17 25);
+  --border: oklch(0.3 0.003 60);
+  --input: oklch(0.32 0.003 60);
+  --ring: oklch(0.5 0.01 60);
+  --brand: oklch(0.72 0.13 262);
+  --brand-soft: oklch(0.3 0.05 262);
+  --success: oklch(0.74 0.13 155);
+  --warning: oklch(0.8 0.12 75);
+}
+@media (prefers-color-scheme: dark) {
+  :where(:root:not([data-theme="light"])) {
+    color-scheme: dark;
+    --background: oklch(0.19 0.003 60);
+    --foreground: oklch(0.93 0.004 75);
+    --card: oklch(0.22 0.003 60);
+    --popover: oklch(0.23 0.003 60);
+    --primary: oklch(0.93 0.004 75);
+    --primary-foreground: oklch(0.2 0.003 60);
+    --secondary: oklch(0.26 0.003 60);
+    --muted: oklch(0.26 0.003 60);
+    --muted-foreground: oklch(0.68 0.006 70);
+    --accent: oklch(0.27 0.003 60);
+    --destructive: oklch(0.68 0.17 25);
+    --border: oklch(0.3 0.003 60);
+    --input: oklch(0.32 0.003 60);
+    --ring: oklch(0.5 0.01 60);
+    --brand: oklch(0.72 0.13 262);
+    --brand-soft: oklch(0.3 0.05 262);
+    --success: oklch(0.74 0.13 155);
+    --warning: oklch(0.8 0.12 75);
+  }
+}
+/* shadcn's focus colour, captured under a name the scoped --ring (a box-shadow) does not shadow. */
+:where(:root) { --tk-ring-color: var(--ring); }
+
+/* ---------- 2. tokens, inside the panel and the landing page only ---------- */
+:where(.cp, .landing-page, .simple-page) {
+  /* surfaces */
+  --bg: var(--background);
+  --surface: var(--card);
+  --surface-2: var(--secondary);                                              /* wells, hover rows, code */
+  --surface-3: color-mix(in oklab, var(--secondary), var(--foreground) 6%);  /* pressed, selected subtle */
+  --overlay: rgba(20, 20, 18, .28);
+  /* lines (--border is shadcn's own, unchanged) */
+  --border-strong: color-mix(in oklab, var(--border), var(--foreground) 12%);
+  /* text */
+  --text: var(--foreground);
+  --text-2: color-mix(in oklab, var(--foreground), var(--muted-foreground) 45%);
+  --muted: var(--muted-foreground);
+  /* accent and states */
+  --accent: var(--brand);
+  --accent-hover: color-mix(in oklab, var(--brand), var(--foreground) 12%);
+  --accent-fg: var(--primary-foreground);
+  --accent-soft: var(--brand-soft);
+  --accent-text: var(--brand);
+  --ok: var(--success);
+  --ok-soft: color-mix(in oklab, var(--success) 13%, var(--card));
+  --warn: color-mix(in oklab, var(--warning) 78%, var(--foreground));
+  --warn-soft: color-mix(in oklab, var(--warning) 14%, var(--card));
+  --err: var(--destructive);
+  --err-soft: color-mix(in oklab, var(--destructive) 11%, var(--card));
+  /* JSON highlighting */
+  --j-key: var(--brand); --j-str: var(--success); --j-num: var(--warn); --j-lit: oklch(from var(--brand) l c calc(h + 45));
+
+  /* type scale */
+  --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --fs-xs: 12px;     /* meta, badges */
+  --fs-sm: 13px;     /* secondary UI (the panel uses 14px, see chart-panel.css) */
+  --fs-md: 15px;     /* body, messages */
+  --fs-lg: 17px;     /* section titles */
+  --fs-xl: 22px;     /* page titles */
+  --fs-2xl: 34px;    /* hero */
+  --lh: 1.55;
+
+  /* spacing (4 px grid) */
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 20px; --s6: 24px; --s8: 32px; --s10: 40px; --s12: 48px;
+
+  /* shape and depth */
+  --r-sm: 6px; --r-md: 10px; --r-lg: 14px; --r-xl: 20px; --r-full: 999px;
+  --shadow-sm: 0 1px 2px rgba(28, 25, 20, .05);
+  --shadow-md: 0 2px 8px rgba(28, 25, 20, .06), 0 1px 2px rgba(28, 25, 20, .04);
+  --shadow-lg: 0 12px 40px rgba(28, 25, 20, .14), 0 2px 8px rgba(28, 25, 20, .06);
+  --ring: 0 0 0 3px color-mix(in oklab, var(--tk-ring-color) 50%, transparent);
+
+  /* motion */
+  --ease: cubic-bezier(.2, .7, .2, 1);
+  --t-fast: 120ms; --t-med: 220ms;
+
+  /* layout */
+  --topbar-h: 56px;
+  --thread-w: 760px;
+  --panel-w: 440px;
+}
+:where(.dark, [data-theme="dark"]) :where(.cp, .landing-page, .simple-page) {
+  --overlay: rgba(0, 0, 0, .55);
+  --shadow-sm: none; --shadow-md: 0 1px 0 rgba(255, 255, 255, .03) inset, 0 2px 10px rgba(0, 0, 0, .35);
+  --shadow-lg: 0 16px 48px rgba(0, 0, 0, .55);
+}
+@media (prefers-color-scheme: dark) {
+  :where(:root:not([data-theme="light"])) :where(.cp, .landing-page, .simple-page) {
+    --overlay: rgba(0, 0, 0, .55);
+    --shadow-sm: none; --shadow-md: 0 1px 0 rgba(255, 255, 255, .03) inset, 0 2px 10px rgba(0, 0, 0, .35);
+    --shadow-lg: 0 16px 48px rgba(0, 0, 0, .55);
+  }
+}
+
+/* ---------- 3. base elements (scoped; zero specificity) ---------- */
+:where(.cp, .landing-page, .simple-page), :where(.cp, .landing-page, .simple-page) *, :where(.cp, .landing-page, .simple-page) ::before, :where(.cp, .landing-page, .simple-page) ::after { box-sizing: border-box; }
+:where(.cp, .landing-page, .simple-page) [hidden], :where(.cp, .landing-page, .simple-page)[hidden] { display: none !important; }
+:where(html:has(> body.landing-page), html:has(> body.simple-page)), :where(body.landing-page, body.simple-page) { margin: 0; height: 100%; }
+:where(body.landing-page, body.simple-page) { background: var(--bg); }
+:where(.cp, .landing-page, .simple-page) {
+  color: var(--text);
+  font: var(--fs-md)/var(--lh) var(--font);
+  -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+}
+:where(.cp, .landing-page, .simple-page) :where(h1, h2, h3, h4) { margin: 0; font-weight: 600; letter-spacing: -.01em; }
+:where(.cp, .landing-page, .simple-page) :where(p, pre) { margin: 0; }
+:where(.cp) :where(ul, ol, dl, dd) { margin: 0; }
+:where(.cp, .landing-page, .simple-page) :where(a) { color: var(--accent-text); text-decoration: none; }
+:where(.cp, .landing-page, .simple-page) :where(a:hover) { text-decoration: underline; text-underline-offset: 2px; }
+:where(.cp, .landing-page, .simple-page) :where(code, pre, kbd, .mono) { font-family: var(--mono); font-size: .86em; }
+:where(.cp, .landing-page, .simple-page) :where(pre) { white-space: pre-wrap; word-break: break-word; }
+:where(.cp) :where(button, input, select, textarea) { font: inherit; }
+:where(.cp, .landing-page, .simple-page) :where(:focus-visible) { outline: none; box-shadow: var(--ring); border-radius: var(--r-sm); }
+:where(.cp, .landing-page, .simple-page) ::selection { background: color-mix(in srgb, var(--accent) 25%, transparent); }
+body:not(.dev) :where(.cp, .landing-page, .simple-page) .dev-only { display: none !important; }
+
+:where(.cp, .landing-page, .simple-page) .muted { color: var(--muted); }
+:where(.cp, .landing-page, .simple-page) .small { font-size: var(--fs-sm); }
+:where(.cp, .landing-page, .simple-page) .xs { font-size: var(--fs-xs); }
+:where(.cp, .landing-page, .simple-page) .nowrap { white-space: nowrap; }
+:where(.cp, .landing-page, .simple-page) .spacer { flex: 1; }
+:where(.cp, .landing-page, .simple-page) .row { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; }
+:where(.cp, .landing-page, .simple-page) .stack { display: flex; flex-direction: column; gap: var(--s3); }
+:where(.cp, .landing-page, .simple-page) .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+:where(.cp, .landing-page, .simple-page) .eyebrow { font-size: var(--fs-xs); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+
+/* ---------- inputs ---------- */
+:where(.cp, .landing-page, .simple-page) :where(input, select, textarea) {
+  font-size: var(--fs-sm); color: var(--text); background: var(--surface);
+  border: 1px solid var(--input, var(--border)); border-radius: var(--r-md); padding: 8px 12px;
+  transition: border-color var(--t-fast), box-shadow var(--t-fast);
+}
+:where(.cp, .landing-page, .simple-page) :where(input:focus, select:focus, textarea:focus) { outline: none; border-color: var(--tk-ring-color); box-shadow: var(--ring); }
+:where(.cp, .landing-page, .simple-page) :where(input::placeholder, textarea::placeholder) { color: var(--muted); }
+
+/* ---------- buttons ---------- */
+:where(.cp, .landing-page, .simple-page) .btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--s2);
+  height: 36px; padding: 0 var(--s4); border-radius: var(--r-md);
+  border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  font: 500 var(--fs-sm)/1 var(--font); cursor: pointer; white-space: nowrap;
+  transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
+}
+:where(.cp, .landing-page, .simple-page) .btn:hover:not(:disabled) { background: var(--surface-2); }
+:where(.cp, .landing-page, .simple-page) .btn:active:not(:disabled) { transform: translateY(.5px); }
+:where(.cp, .landing-page, .simple-page) .btn:disabled { opacity: .5; cursor: not-allowed; }
+:where(.cp, .landing-page, .simple-page) .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+:where(.cp, .landing-page, .simple-page) .btn.primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
+:where(.cp, .landing-page, .simple-page) .btn.ghost { background: transparent; border-color: transparent; color: var(--text-2); }
+:where(.cp, .landing-page, .simple-page) .btn.ghost:hover:not(:disabled) { background: var(--surface-2); color: var(--text); }
+:where(.cp, .landing-page, .simple-page) .btn.sm { height: 30px; padding: 0 var(--s3); font-size: var(--fs-xs); border-radius: var(--r-sm); }
+:where(.cp, .landing-page, .simple-page) .btn.lg { height: 46px; padding: 0 var(--s6); font-size: var(--fs-md); border-radius: var(--r-lg); }
+:where(.cp, .landing-page, .simple-page) .btn.icon { width: 36px; padding: 0; }
+:where(.cp, .landing-page, .simple-page) .btn.icon.sm { width: 30px; }
+:where(.cp, .landing-page, .simple-page) .btn[aria-pressed="true"] { background: var(--surface-3); color: var(--text); }
+:where(.cp, .landing-page, .simple-page) :where(.btn svg, .icon-svg) { width: 16px; height: 16px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+:where(.cp, .landing-page, .simple-page) .linklike { border: 0; background: none; padding: 0; color: var(--accent-text); font: inherit; cursor: pointer; }
+:where(.cp, .landing-page, .simple-page) .linklike:hover { text-decoration: underline; text-underline-offset: 2px; }
+
+/* ---------- chips, badges, kbd (real padding; the text never touches the edge) ---------- */
+:where(.cp, .landing-page, .simple-page) .chip {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 4px 12px;
+  border: 1px solid var(--border); border-radius: var(--r-full); background: var(--surface);
+  color: var(--text-2); font: 500 var(--fs-sm)/1.25 var(--font); cursor: pointer; white-space: nowrap;
+  transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
+}
+:where(.cp, .landing-page, .simple-page) .chip:hover { background: var(--surface-2); color: var(--text); }
+:where(.cp, .landing-page, .simple-page) :where(.chip[aria-pressed="true"], .chip.on) { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 35%, transparent); color: var(--accent-text); }
+:where(.cp, .landing-page, .simple-page) .badge {
+  display: inline-flex; align-items: center; gap: 4px; min-height: 22px; padding: 2px 8px; border-radius: var(--r-full);
+  font: 600 var(--fs-xs)/1.3 var(--font); background: var(--surface-2); color: var(--text-2); white-space: nowrap;
+}
+:where(.cp, .landing-page, .simple-page) .badge.ok { background: var(--ok-soft); color: var(--ok); }
+:where(.cp, .landing-page, .simple-page) .badge.warn { background: var(--warn-soft); color: var(--warn); }
+:where(.cp, .landing-page, .simple-page) .badge.err { background: var(--err-soft); color: var(--err); }
+:where(.cp, .landing-page, .simple-page) .badge.accent { background: var(--accent-soft); color: var(--accent-text); }
+:where(.cp, .landing-page, .simple-page) .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+:where(.cp, .landing-page, .simple-page) .dot.ok { background: var(--ok); }
+:where(.cp, .landing-page, .simple-page) .dot.warn { background: var(--warn); }
+:where(.cp, .landing-page, .simple-page) .dot.err { background: var(--err); }
+:where(.cp, .landing-page, .simple-page) .dot.busy { background: var(--accent); animation: tk-pulse 1.4s ease-in-out infinite; }
+:where(.cp, .landing-page, .simple-page) :where(kbd) { display: inline-block; min-width: 20px; padding: 1px 5px; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 5px; background: var(--surface); color: var(--muted); font-size: 11px; text-align: center; }
+
+/* ---------- segmented control and tabs (shadcn underline tabs) ---------- */
+:where(.cp, .landing-page, .simple-page) .segmented { display: inline-flex; padding: 3px; gap: 2px; background: var(--surface-2); border-radius: var(--r-md); }
+:where(.cp, .landing-page, .simple-page) .segmented button {
+  border: 0; background: transparent; color: var(--text-2); font: 500 var(--fs-sm)/1 var(--font);
+  height: 30px; padding: 0 var(--s3); border-radius: 7px; cursor: pointer; white-space: nowrap;
+}
+:where(.cp, .landing-page, .simple-page) :where(.segmented button[aria-pressed="true"], .segmented button[aria-selected="true"]) { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm), 0 0 0 1px var(--border); }
+:where(.cp, .landing-page, .simple-page) .tabs { display: flex; gap: var(--s5); border-bottom: 1px solid var(--border); padding: 0 var(--s5); }
+:where(.cp, .landing-page, .simple-page) .tabs [role="tab"] {
+  border: 0; background: none; padding: var(--s3) 0; margin-bottom: -1px; cursor: pointer;
+  font: 500 var(--fs-sm)/1 var(--font); color: var(--muted); border-bottom: 2px solid transparent;
+}
+:where(.cp, .landing-page, .simple-page) .tabs [role="tab"]:hover { color: var(--text); }
+:where(.cp, .landing-page, .simple-page) .tabs [role="tab"][aria-selected="true"] { color: var(--text); border-bottom-color: var(--text); }
+
+/* ---------- cards ---------- */
+:where(.cp, .landing-page, .simple-page) .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--shadow-sm); }
+:where(.cp, .landing-page, .simple-page) .card-pad { padding: var(--s5); }
+:where(.cp, .landing-page, .simple-page) .well { background: var(--surface-2); border-radius: var(--r-md); padding: var(--s3) var(--s4); }
+
+/* ---------- disclosure (collapsible sections) ---------- */
+:where(.cp, .landing-page, .simple-page) details.disclosure > summary {
+  list-style: none; cursor: pointer; display: flex; align-items: center; gap: var(--s2);
+  color: var(--text-2); font-size: var(--fs-sm); padding: 6px 0; user-select: none;
+}
+:where(.cp, .landing-page, .simple-page) details.disclosure > summary::-webkit-details-marker { display: none; }
+:where(.cp, .landing-page, .simple-page) details.disclosure > summary::before {
+  content: ""; width: 6px; height: 6px; flex: none; margin: 0 4px 0 2px;
+  border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg); transition: transform var(--t-fast) var(--ease); opacity: .6;
+}
+:where(.cp, .landing-page, .simple-page) details.disclosure[open] > summary::before { transform: rotate(45deg); }
+:where(.cp, .landing-page, .simple-page) details.disclosure > summary:hover { color: var(--text); }
+
+/* ---------- popover and dialog ---------- */
+:where(.cp, .landing-page, .simple-page) .popover {
+  position: fixed; z-index: 40; min-width: 260px; max-width: min(420px, calc(100vw - 24px));
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--shadow-lg);
+  padding: var(--s2); animation: pop-in var(--t-med) var(--ease);
+}
+:where(.cp, .landing-page, .simple-page) .menu-item {
+  display: flex; align-items: flex-start; gap: var(--s3); width: 100%; text-align: left;
+  border: 0; background: none; color: var(--text); padding: 10px var(--s3); border-radius: var(--r-md); cursor: pointer; font: inherit;
+}
+:where(.cp, .landing-page, .simple-page) :where(.menu-item:hover, .menu-item[aria-selected="true"], .menu-item.active) { background: var(--surface-2); }
+:where(.cp, .landing-page, .simple-page) .menu-item .menu-sub { display: block; color: var(--muted); font-size: var(--fs-xs); margin-top: 2px; }
+:where(.cp, .landing-page, .simple-page) dialog.sheet {
+  border: 1px solid var(--border); border-radius: var(--r-xl); padding: 0; background: var(--surface); color: var(--text);
+  box-shadow: var(--shadow-lg); width: min(720px, calc(100vw - 32px)); max-height: min(80vh, 760px);
+}
+:where(.cp, .landing-page, .simple-page) dialog.sheet::backdrop { background: var(--overlay); backdrop-filter: blur(2px); }
+:where(.cp, .landing-page, .simple-page) dialog.sheet[open] { animation: pop-in var(--t-med) var(--ease); display: flex; flex-direction: column; }
+@media (max-width: 640px) {
+  :where(.cp, .landing-page, .simple-page) dialog.sheet { width: 100vw; max-width: 100vw; max-height: 88vh; margin: auto 0 0; border-radius: var(--r-xl) var(--r-xl) 0 0; }
+}
+
+/* ---------- progress ---------- */
+:where(.cp, .landing-page, .simple-page) .progress { height: 6px; border-radius: var(--r-full); background: var(--surface-3); overflow: hidden; }
+:where(.cp, .landing-page, .simple-page) .progress > span { display: block; height: 100%; width: 0; background: var(--accent); border-radius: inherit; transition: width 300ms var(--ease); }
+:where(.cp, .landing-page, .simple-page) .progress.indeterminate > span { width: 35%; animation: tk-slide 1.2s var(--ease) infinite; }
+
+/* ---------- busy indicators ---------- */
+:where(.cp, .landing-page, .simple-page) .shimmer {
+  background: linear-gradient(90deg, var(--muted) 0%, var(--muted) 40%, var(--text) 50%, var(--muted) 60%, var(--muted) 100%);
+  background-size: 250% 100%; -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: tk-shimmer 2.2s linear infinite;
+}
+:where(.cp, .landing-page, .simple-page) .spinner { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--surface-3); border-top-color: var(--accent); animation: tk-spin .8s linear infinite; flex: none; }
+
+/* ---------- JSON ---------- */
+:where(.cp, .landing-page, .simple-page) .json { background: var(--surface-2); border-radius: var(--r-md); padding: var(--s3) var(--s4); font-size: 12.5px; line-height: 1.5; overflow: auto; }
+:where(.cp, .landing-page, .simple-page) .j-key { color: var(--j-key); }
+:where(.cp, .landing-page, .simple-page) .j-str { color: var(--j-str); }
+:where(.cp, .landing-page, .simple-page) .j-num { color: var(--j-num); }
+:where(.cp, .landing-page, .simple-page) .j-lit { color: var(--j-lit); }
+
+/* ---------- empty and error states ---------- */
+:where(.cp, .landing-page, .simple-page) .empty { color: var(--muted); font-size: var(--fs-sm); padding: var(--s6) var(--s4); text-align: center; }
+:where(.cp, .landing-page, .simple-page) .alert { border-radius: var(--r-md); padding: var(--s3) var(--s4); font-size: var(--fs-sm); background: var(--err-soft); color: var(--err); }
+:where(.cp, .landing-page, .simple-page) .alert.warn { background: var(--warn-soft); color: var(--warn); }
+
+/* ---------- scrollbars ---------- */
+:where(.cp, .landing-page, .simple-page) .scroll { overflow: auto; scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
+
+/* ---------- keyframes (tk- names never collide with Tailwind's spin/pulse) ---------- */
+@keyframes tk-shimmer { from { background-position: 100% 0; } to { background-position: -150% 0; } }
+@keyframes tk-spin { to { transform: rotate(360deg); } }
+@keyframes tk-pulse { 50% { opacity: .35; } }
+@keyframes tk-slide { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
+@keyframes pop-in { from { opacity: 0; transform: translateY(4px) scale(.985); } to { opacity: 1; transform: none; } }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes rise-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  :where(.cp, .landing-page, .simple-page), :where(.cp, .landing-page, .simple-page) *, :where(.cp, .landing-page, .simple-page) ::before, :where(.cp, .landing-page, .simple-page) ::after {
+    animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important;
+  }
+}

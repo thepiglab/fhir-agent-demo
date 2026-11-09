@@ -1,0 +1,33 @@
+{
+ "episodes": 6904,
+ "by_source": {
+  "gold": 2067,
+  "negative/delete-outside-scope": 1015,
+  "negative/transaction-rollback": 339,
+  "negative/over-budget": 994,
+  "negative/other-patient": 546,
+  "negative/stale-if-match": 190,
+  "negative/missing-if-match": 160,
+  "negative/read-after-delete": 153,
+  "trace/gpt-oss-120b": 720,
+  "trace/lfm3-sft-v0.4": 720
+ },
+ "options": {
+  "efficiency_weight": 0.0,
+  "answer_mode": "json_or_fence",
+  "retrieval_weight": 0.0,
+  "reward_mode": "strict",
+  "interface": "v0.5",
+  "scoring_version": "v0.6"
+ },
+ "max_calls": 40,
+ "cohorts": {
+  "natural-v0.2.1": "natural-track-v0.2.1-dev",
+  "keyed-v0.6.0": "synthetic-hospital-v0.6.0-dev",
+  "clinical-hard-v0.6.0": "clinical-hard-v0.6.0",
+  "clinical-v0.5.0": "clinical-v0.5.0"
+ },
+ "seed": 0,
+ "per_family": 20,
+ "traces_per_family": 15
+}

@@ -1,0 +1,9 @@
+node_modules/
+dist/
+# Optional local weights, served only by the dev and preview servers at /models/<file>.gguf
+# (see vite.config.ts). Never copied into dist/.
+models/
+
+# Machine-specific data roots for the parity tests (see tests/parity/load.ts).
+tests/parity/roots.local.json
+

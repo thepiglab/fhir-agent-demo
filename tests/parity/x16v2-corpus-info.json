@@ -1,0 +1,35 @@
+{
+  "episodes": 544,
+  "profile": "X16v2",
+  "options": {
+    "tokenizer": "/private/tmp/claude-501/-Users-mkieffer-programming-ToadResearch-fhir-env--claude-worktrees-lfm3-webgpu-4af98b/150ed1e1-59c9-4202-8899-8621145f344b/scratchpad/tok/tokenizer.json",
+    "tight_budget": 8000
+  },
+  "harness": {
+    "commit": "2e88963d89a261a595357275dc48a59db87fa390",
+    "package": "environments/fhir_query_rl/fhir_suite_harness",
+    "files": {
+      "profiles/context1.py": "4f7288bfd51a85d0993ea5c5d0bb575520861c19531fd17380368d8cf8c39933",
+      "core.py": "548572570379293624bd2bbbe6ae31ebd185a7532d6b464a354ae899205a40c6",
+      "exposure.py": "a14a7bb6a0148104a673db8a4db7691a84485d9b6d447208d900419a7ff5c41c",
+      "profiles/__init__.py": "e6507ceb065508800ce5da37344c24a5b4be8a5edea2c5375ec72378c67c5553",
+      "profiles/context1_v2.py": "5193b744fe6af9d70268932ea87db374e87f3cfc3f68429ad95792e80f76b850"
+    }
+  },
+  "cohorts": [
+    "natural-v0.2.1",
+    "natural-v0.2.2"
+  ],
+  "recorded_x16": 0,
+  "by_variant": {
+    "plain": 136,
+    "prune": 136,
+    "tight": 136,
+    "zero": 136
+  },
+  "overflows": 34,
+  "hard_cutoffs": 48,
+  "hard_caps": 29,
+  "per_family": 2,
+  "seed": 0
+}

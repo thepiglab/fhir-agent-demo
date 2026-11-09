@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>EHR agent · ask a health record a question, privately</title>
+<meta name="description" content="A private, on-device FHIR agent: a 1.7B-parameter model that searches a synthetic health record and cites the records it used, running entirely in your browser on WebGPU.">
+<script>
+  // Apply the saved theme before first paint (no flash). Same key as the Chart assistant.
+  try { const t = JSON.parse(localStorage.getItem('fhir-demo-theme') || '"auto"'); if (t !== 'auto') document.documentElement.dataset.theme = t; } catch (e) { /* storage unavailable */ }
+</script>
+</head>
+<body class="landing-page">
+<div id="announcer" class="sr-only" aria-live="polite"></div>
+
+<div class="lp" id="landing">
+  <header class="lp-top">
+    <a class="lp-brand" href="./" aria-label="EHR agent, home">
+      <span class="lp-mark" aria-hidden="true"></span>
+      <span>EHR agent</span>
+    </a>
+    <button id="theme" type="button" class="btn ghost icon" aria-label="Theme"></button>
+  </header>
+
+  <main class="lp-main">
+    <section class="lp-hero" aria-labelledby="lp-title">
+      <p class="lp-eyebrow"><span data-icon="lock"></span>On-device FHIR agent</p>
+      <h1 id="lp-title">Ask a health record a question, <em>privately</em>.</h1>
+      <p class="lp-sub">
+        A 1.7-billion-parameter model reads a synthetic patient chart with FHIR searches and answers
+        with the records it relied on. The model, the chart and every search run in this browser on
+        WebGPU. Nothing leaves this device.
+      </p>
+      <p class="lp-synthetic" role="note"><span data-icon="check" aria-hidden="true"></span>Synthetic patients only: no real health data, and not for clinical use.</p>
+
+      <div class="lp-cta" id="cta">
+        <button class="btn lg primary lp-main-btn" type="button" disabled>
+          <span class="spinner"></span>Checking this browser…
+        </button>
+      </div>
+      <p class="lp-note" id="cta-note"></p>
+      <a class="lp-browse" id="browse" href="chart.html">Browse the charts without the model <span aria-hidden="true">→</span></a>
+    </section>
+
+    <ul class="lp-features" aria-label="What makes it different">
+      <li>
+        <span class="lp-feature-icon" data-icon="lock"></span>
+        <strong>Private</strong>
+        <span>Nothing leaves this device. No server sees the chart or your questions.</span>
+      </li>
+      <li>
+        <span class="lp-feature-icon" data-icon="monitor"></span>
+        <strong>On-device</strong>
+        <span>Runs on your GPU with WebGPU, about 127 tokens a second on an M1&nbsp;Max.</span>
+      </li>
+      <li>
+        <span class="lp-feature-icon" data-icon="check"></span>
+        <strong>Grounded</strong>
+        <span>Cites the FHIR records it used, and is graded against the benchmark.</span>
+      </li>
+    </ul>
+
+    <section class="lp-details-wrap" aria-label="Model details">
+      <details class="disclosure lp-details" id="details">
+        <summary>Model details</summary>
+        <div id="details-body" class="lp-details-body"></div>
+      </details>
+    </section>
+  </main>
+
+  <footer class="lp-footer">
+    <p>Research demo on synthetic records. Not medical advice, and not validated on real patient data.</p>
+    <p>
+      LFM3 1.7B by Liquid AI (LFM Open License). In-browser inference by the
+      <a href="https://huggingface.co/spaces/webml-community/LFM3-1.7B-WebGPU-Pi" target="_blank" rel="noopener">webml-community LFM3 WebGPU runtime</a> (Apache-2.0).
+    </p>
+  </footer>
+</div>
+
+<!-- ?simple=1: the self-test page (scripts/bench_chrome.ts drives it with &autoload=1). Its ids are
+     what the benchmark reads (#model-state, window.demoState, window.runBench). -->
+<template id="simple-mode">
+  <div class="simple">
+    <header class="simple-top">
+      <a class="lp-brand" href="./"><span class="lp-mark" aria-hidden="true"></span><span>EHR agent</span></a>
+      <span class="muted small">Self-test</span>
+      <span class="spacer"></span>
+      <span id="model-chip" class="badge" role="status">Model not loaded</span>
+    </header>
+    <main class="simple-main">
+      <section class="card simple-card" id="model-card" aria-labelledby="model-title">
+        <div class="simple-head">
+          <h2 id="model-title">Model</h2>
+          <span id="model-size" class="muted small"></span>
+        </div>
+        <p class="small"><span id="model-name"></span> · <a id="model-source" target="_blank" rel="noopener"></a></p>
+        <p id="model-state" class="simple-state"></p>
+        <div class="row">
+          <button id="load" class="btn primary" type="button" disabled>Download and load</button>
+          <label class="btn" for="local-gguf">Use a local GGUF…</label>
+          <input id="local-gguf" type="file" accept=".gguf" hidden>
+          <button id="offload" class="btn ghost" type="button" hidden>Remove from this browser</button>
+        </div>
+        <div id="progress-wrap" class="simple-progress" hidden>
+          <div class="progress"><span id="progress-bar"></span></div>
+          <div id="progress-text" class="muted small mono"></div>
+        </div>
+        <details class="disclosure">
+          <summary>This device</summary>
+          <ul id="checks" class="simple-checks"><li>Checking…</li></ul>
+        </details>
+      </section>
+
+      <section class="card simple-card" aria-labelledby="chart-title">
+        <div class="simple-head">
+          <h2 id="chart-title">Chart</h2>
+          <label class="btn sm" for="fhir-file">Load a FHIR file…</label>
+          <input id="fhir-file" type="file" accept=".json,.ndjson" hidden>
+        </div>
+        <div id="patient" class="simple-patient"></div>
+        <details class="disclosure">
+          <summary id="records-summary">Records</summary>
+          <div id="records" class="simple-tags"></div>
+        </details>
+      </section>
+
+      <section class="card simple-card" aria-labelledby="ask-title">
+        <div class="simple-head"><h2 id="ask-title">Ask</h2></div>
+        <form id="ask-form" class="stack">
+          <select id="examples" aria-label="Example questions"></select>
+          <textarea id="question" rows="3" placeholder="Ask about this chart, e.g. What was the most recent hemoglobin?"></textarea>
+          <div class="row">
+            <button id="ask" class="btn primary" type="submit" disabled>Ask</button>
+            <span id="ask-note" class="muted small">Load the model to ask.</span>
+            <span class="spacer"></span>
+            <label class="small row"><input type="checkbox" id="thinking" checked> Reasoning</label>
+            <label class="small row">Temperature <input id="temp" type="number" value="0" step="0.1" min="0" max="2"></label>
+          </div>
+        </form>
+        <div id="runs"></div>
+      </section>
+    </main>
+
+    <aside id="drawer" class="simple-drawer" hidden aria-labelledby="drawer-title">
+      <div class="simple-head">
+        <h3 id="drawer-title" class="mono"></h3>
+        <button id="drawer-close" class="btn sm" type="button">Close</button>
+      </div>
+      <pre id="drawer-body" class="mono"></pre>
+    </aside>
+  </div>
+</template>
+
+<script type="module" src="./src/ui/model-page.ts"></script>
+</body>
+</html>
