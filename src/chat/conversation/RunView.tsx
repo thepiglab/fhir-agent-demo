@@ -20,7 +20,7 @@ import { GradeCard } from './GradeCard.tsx';
 import { openRecord, useRun } from './hooks.ts';
 import { DotMatrix } from './DotMatrix.tsx';
 import { ReplyView } from './ReplyView.tsx';
-import type { CallView, Run } from './run.ts';
+import type { CallView, Run, ThoughtView } from './run.ts';
 import type { RunTrace } from './types.ts';
 
 const secs = (s: number): string => (s < 10 ? `${s.toFixed(1)}s` : s < 60 ? `${Math.round(s)}s` : `${Math.floor(s / 60)}m ${Math.round(s % 60)}s`);
@@ -102,18 +102,19 @@ function StepLine({ call, dev }: { call: CallView; dev: boolean }) {
   );
 }
 
-function Thought({ run }: { run: Run }) {
-  const text = run.reasoning.trim();
+/** One turn's reasoning, placed just before the searches that turn made. */
+function Thought({ thought, live }: { thought: ThoughtView; live: boolean }) {
+  const text = thought.text.trim();
   const box = useRef<HTMLDivElement>(null);
-  useEffect(() => { if (run.thinking && box.current) box.current.scrollTop = box.current.scrollHeight; });
+  useEffect(() => { if (live && box.current) box.current.scrollTop = box.current.scrollHeight; });
   if (!text) return null;
-  const s = run.thinkingMs / 1000;
+  const s = thought.ms / 1000;
   return (
     <TraceCollapsible defaultOpen={false}>
       <TraceCollapsibleTrigger>
-        <TraceLine status={run.thinking ? 'running' : undefined}>
-          <TraceTitle>{run.thinking ? 'Thinking' : 'Thought'}</TraceTitle>
-          {!run.thinking && s >= 0.5 ? <TraceDescription>· {secs(s)}</TraceDescription> : null}
+        <TraceLine status={live ? 'running' : undefined}>
+          <TraceTitle>{live ? 'Thinking' : 'Thought'}</TraceTitle>
+          {!live && s >= 0.5 ? <TraceDescription>· {secs(s)}</TraceDescription> : null}
         </TraceLine>
       </TraceCollapsibleTrigger>
       <TraceCollapsibleContent>
@@ -121,6 +122,20 @@ function Thought({ run }: { run: Run }) {
       </TraceCollapsibleContent>
     </TraceCollapsible>
   );
+}
+
+type Step = { kind: 'thought'; thought: ThoughtView; live: boolean } | { kind: 'call'; call: CallView };
+/** Each turn's thought, then the calls that turn made, in turn order. */
+function steps(run: Run): Step[] {
+  const turns = [...new Set([...run.thoughts.map((t) => t.turn), ...run.calls.map((c) => c.turn)])].sort((a, b) => a - b);
+  const lastThought = run.thoughts.at(-1);
+  return turns.flatMap((turn): Step[] => {
+    const thought = run.thoughts.find((t) => t.turn === turn);
+    return [
+      ...(thought ? [{ kind: 'thought' as const, thought, live: run.thinking && thought === lastThought }] : []),
+      ...run.calls.filter((c) => c.turn === turn).map((call) => ({ kind: 'call' as const, call })),
+    ];
+  });
 }
 
 /** The Run-activity row: live loader and step while working; "Worked for 14s · 3 searches" after. */
@@ -132,7 +147,7 @@ function Activity({ run, dev }: { run: Run; dev: boolean }) {
     const id = setInterval(() => tick((n) => n + 1), 500);
     return () => clearInterval(id);
   }, [run.finished]);
-  const hasSteps = run.calls.length > 0 || !!run.reasoning.trim();
+  const hasSteps = run.calls.length > 0 || run.thoughts.some((t) => t.text.trim());
   const summary = run.summary();
   const label = run.finished
     ? <TraceLine><TraceTitle>Worked for {secs(run.seconds)}</TraceTitle>{summary ? <TraceDescription>· {summary}</TraceDescription> : null}</TraceLine>
@@ -150,8 +165,9 @@ function Activity({ run, dev }: { run: Run; dev: boolean }) {
         <TraceCollapsibleTrigger>{label}</TraceCollapsibleTrigger>
         <TraceCollapsibleContent>
           <Trace className="gap-2.5">
-            <Thought run={run} />
-            {run.calls.map((call) => <StepLine key={call.id} call={call} dev={dev} />)}
+            {steps(run).map((item) => (item.kind === 'thought'
+              ? <Thought key={`t${item.thought.turn}`} thought={item.thought} live={item.live} />
+              : <StepLine key={item.call.id} call={item.call} dev={dev} />))}
           </Trace>
         </TraceCollapsibleContent>
       </TraceCollapsible>

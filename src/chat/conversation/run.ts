@@ -23,6 +23,16 @@ export interface CallView {
   result: ToolStepEvent | null;
   /** The run ended before this call ran. */
   skipped: boolean;
+  /** The model turn that made this call. */
+  turn: number;
+}
+
+/** One turn's reasoning, shown just before that turn's calls. */
+export interface ThoughtView {
+  turn: number;
+  text: string;
+  /** Milliseconds spent producing it. */
+  ms: number;
 }
 
 export interface BenchInfo { label: string; family: string }
@@ -59,8 +69,10 @@ export class Run {
   state: RunState = 'running';
   /** What is happening now, in words. */
   phase = 'Reading the question';
-  /** All turns' reasoning, one block per run. */
-  reasoning = '';
+  /** Each turn's reasoning, in order; shown interleaved with that turn's calls. */
+  thoughts: ThoughtView[] = [];
+  /** The model turn running now. */
+  turn = 0;
   /** Reasoning is streaming right now. */
   thinking = false;
   /** Milliseconds spent producing reasoning, across turns. */
@@ -107,7 +119,10 @@ export class Run {
   private stopThinking(): void {
     if (!this.thinking) return;
     this.thinking = false;
-    this.thinkingMs += performance.now() - this.thinkingSince;
+    const ms = performance.now() - this.thinkingSince;
+    this.thinkingMs += ms;
+    const last = this.thoughts.at(-1);
+    if (last) this.thoughts = [...this.thoughts.slice(0, -1), { ...last, ms: last.ms + ms }];
   }
 
   handle(message: StreamEvent): void {
@@ -117,6 +132,7 @@ export class Run {
         break;
       case 'model_call':
         this.stopThinking();
+        this.turn = message.turn;
         this.phase = message.turn === 1 ? 'Reading the question' : 'Reading the results';
         break;
       case 'prefill':
@@ -130,9 +146,11 @@ export class Run {
           if (!this.thinking) {
             this.thinking = true;
             this.thinkingSince = performance.now();
-            if (this.reasoning.trim()) this.reasoning = this.reasoning.trimEnd() + '\n\n';
           }
-          this.reasoning += message.text;
+          const last = this.thoughts.at(-1);
+          this.thoughts = last && last.turn === message.turn
+            ? [...this.thoughts.slice(0, -1), { ...last, text: last.text + message.text }]
+            : [...this.thoughts, { turn: message.turn, text: message.text, ms: 0 }];
           this.phase = 'Thinking';
         } else {
           this.stopThinking();
@@ -147,7 +165,7 @@ export class Run {
           if (step.tool_calls.length) {
             this.calls = [...this.calls, ...step.tool_calls.map((call) => {
               const { method, path, args } = request(call.arguments);
-              return { id: call.id, name: call.name, method, path, args, result: null, skipped: false };
+              return { id: call.id, name: call.name, method, path, args, result: null, skipped: false, turn: this.turn };
             })];
             this.phase = this.calls.at(-1)?.method === 'GET' || this.calls.at(-1)?.method === '?' ? 'Searching the chart' : 'Updating the chart';
           }
