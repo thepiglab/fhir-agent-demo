@@ -111,7 +111,7 @@ async function refresh(host: Host): Promise<void> {
     return;
   }
   if (!remote.ok && !host.overridden) {
-    fill(cta(), failureBlock(`Can’t reach the model weights (${remote.status}). Try again later, or use a local GGUF from Model details.`, () => void refresh(host)));
+    fill(cta(), failureBlock(`Can’t reach the model weights (${remote.status}). Try again later.`, () => void refresh(host)));
     note('');
     return;
   }
@@ -173,7 +173,7 @@ async function start(host: Host): Promise<void> {
   } catch (error) {
     off();
     fill(cta(), failureBlock('The model didn’t load: ' + errorText(error), () => void start(host)));
-    note('Nothing was sent anywhere. If it keeps failing, check “This device” under Model details.');
+    note('Nothing was sent anywhere. If it keeps failing, check that this browser supports WebGPU (Chrome or Edge 113+, Safari 26).');
   }
 }
 
@@ -187,6 +187,7 @@ function failureBlock(text: string, retry: () => void): HTMLElement {
 let confirmingRemove = false;
 let deviceRows: HTMLElement[] | null = null;
 function renderDetails(host: Host): void {
+  if (!document.getElementById('details-body')) return; // the Model details dropdown was removed from the landing page
   const src = host.source;
   const fact = (k: string, v: Child) => [h('dt', null, k), h('dd', null, v)];
   const facts = h('dl', { class: 'lp-facts' },

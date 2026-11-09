@@ -32,7 +32,6 @@
         with the records it relied on. The model, the chart and every search run in this browser on
         WebGPU. Nothing leaves this device.
       </p>
-      <p class="lp-synthetic" role="note"><span data-icon="check" aria-hidden="true"></span>Synthetic patients only: no real health data, and not for clinical use.</p>
 
       <div class="lp-cta" id="cta">
         <button class="btn lg primary lp-main-btn" type="button" disabled>
@@ -60,22 +59,7 @@
         <span>Cites the FHIR records it used, and is graded against the benchmark.</span>
       </li>
     </ul>
-
-    <section class="lp-details-wrap" aria-label="Model details">
-      <details class="disclosure lp-details" id="details">
-        <summary>Model details</summary>
-        <div id="details-body" class="lp-details-body"></div>
-      </details>
-    </section>
   </main>
-
-  <footer class="lp-footer">
-    <p>Research demo on synthetic records. Not medical advice, and not validated on real patient data.</p>
-    <p>
-      LFM3 1.7B by Liquid AI (LFM Open License). In-browser inference by the
-      <a href="https://huggingface.co/spaces/webml-community/LFM3-1.7B-WebGPU-Pi" target="_blank" rel="noopener">webml-community LFM3 WebGPU runtime</a> (Apache-2.0).
-    </p>
-  </footer>
 </div>
 
 <!-- ?simple=1: the self-test page (scripts/bench_chrome.ts drives it with &autoload=1). Its ids are

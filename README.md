@@ -28,8 +28,7 @@ bun run typecheck               # strict TypeScript check (or: npm run typecheck
    **Download the model and start · 1.1 GB**: it fetches them from Hugging Face
    ([`mkieffer/LFM3-FHIR-demo-v1`](https://huggingface.co/mkieffer/LFM3-FHIR-demo-v1), pinned to one
    commit) with a progress bar, then opens the Chart assistant by itself. Next time the button opens it
-   at once (the weights load from browser storage in seconds). **Model details** has the facts, a local
-   GGUF option and **Remove from this browser**.
+   at once (the weights load from browser storage in seconds).
 2. **Chart assistant** (`chart.html`):
    - **Top bar:** the **Dataset** menu: natural prompts v0.2.3, dev patients (the default, whichever
      release the export was given) and held-out patients, natural questions only. In the developer
@@ -88,7 +87,7 @@ estimate, so a question can outgrow it; the run then ends with a "too long" mess
 **Testing a local GGUF:** put the file in `models/` at the project root (git-ignored) and open
 `/?model=models/<file>.gguf`. Only the dev and preview servers serve that folder (byte ranges
 and `HEAD` included, see `vite.config.ts`); it is never copied into `dist/`, so a deployed site
-cannot offer it. The landing page's **Use a local GGUF…** (Model details) loads a file from disk without a
+cannot offer it. Opening `chart.html?local=1` lets you pick a `.gguf` file from disk without a
 server, and works on any host.
 
 ## Browser requirements
