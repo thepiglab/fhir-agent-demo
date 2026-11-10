@@ -15,8 +15,12 @@
 //    the last SENTENCE_WINDOW sentences are repeats, the turn is cancelled.
 // Either ends the run cleanly with no answer and a plain reason (trace.stop_reason, trace.error).
 
-/** Reasoning tokens one turn may spend (the reply cap is 2,048 tokens, thinking included). */
-export const THINKING_BUDGET = 1536;
+/** Tokens one model reply may produce, thinking included: the RL evals' per-turn cap. */
+export const REPLY_CAP = 4096;
+/** Reasoning tokens one turn may spend; the rest of REPLY_CAP is left for the tool call or answer.
+ *  (Was 1,536 of 2,048, half what the models had in evaluation; multi-part questions ran out.)
+ *  The loop guards below still stop a turn that repeats itself, long before this. */
+export const THINKING_BUDGET = 3584;
 /** A piece of 2 to 80 characters, repeated this many times in a row at the end of the thinking. */
 export const LOOP_REPEATS = 8;
 const TAIL = 1200;

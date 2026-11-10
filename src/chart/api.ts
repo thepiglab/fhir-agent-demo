@@ -28,7 +28,7 @@ import type { ModelReply } from '../fhir/context1.ts';
 import { LONG_CONTEXT_TOKENS, MODEL_REPETITION_PENALTY, activeHarness, contextTokens } from '../model/config.ts';
 import type { Inputs, Trace as TraceBase } from './trace.ts';
 import { checkReply, cleanReply, expandCitations, replyEvidence, replyMessages } from './reply.ts';
-import { GUARD_TEXT, THINKING_BUDGET, thinkingGuard } from './guard.ts';
+import { GUARD_TEXT, REPLY_CAP, THINKING_BUDGET, thinkingGuard } from './guard.ts';
 import type { GuardStop } from './guard.ts';
 import type { ReplyInput, ReplyResult } from './reply.ts';
 
@@ -299,10 +299,10 @@ export function tooLong(context: number): string {
   return context < LONG_CONTEXT_TOKENS ? `${base} Turn on Long charts in the ⋯ menu (${LONG_CONTEXT_TOKENS.toLocaleString('en-US')} tokens, more memory) and ask again.` : base;
 }
 
-/** Tokens per model reply (thinking included): 2048, or ?max_new_tokens= in the dev server only. */
+/** Tokens per model reply (thinking included): REPLY_CAP (the evals' 4,096 per turn), or ?max_new_tokens= in the dev server only. */
 function replyCap(): number {
   const wanted = import.meta.env?.DEV && globalThis.location ? Number(new URLSearchParams(globalThis.location.search).get('max_new_tokens')) : 0;
-  return Number.isInteger(wanted) && wanted >= 256 && wanted <= 8192 ? wanted : 2048;
+  return Number.isInteger(wanted) && wanted >= 256 && wanted <= 8192 ? wanted : REPLY_CAP;
 }
 
 /** Reasoning tokens per turn before the guard stops it: THINKING_BUDGET, or ?thinking_budget= in the dev server only (measurement). */
