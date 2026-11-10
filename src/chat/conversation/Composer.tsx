@@ -132,7 +132,7 @@ export function Composer({ text, setText, className, autoFocus }: { text: string
   return (
     <form
       onSubmit={(e) => { e.preventDefault(); submit(); }}
-      className={cn('w-full overflow-hidden rounded-[1.75rem] bg-muted dark:bg-muted', height?.grow && 'transition-[height] duration-200 ease-out motion-reduce:transition-none', className)}
+      className={cn('w-full overflow-hidden rounded-[1.75rem] bg-muted dark:bg-muted', height?.grow ? 'transition-[height] duration-200 ease-out motion-reduce:transition-none' : 'transition-none', className)}
       style={height === null ? undefined : { height: height.px }}
       aria-label="Ask about the chart"
     >
