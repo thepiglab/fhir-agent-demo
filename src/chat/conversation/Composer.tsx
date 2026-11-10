@@ -46,7 +46,7 @@ export function Composer({ text, setText, className, autoFocus }: { text: string
   useApp(['mode', 'question', 'model', 'busy', 'patient']);
   const input = useRef<HTMLTextAreaElement>(null);
   const inner = useRef<HTMLDivElement>(null);
-  const [height, setHeight] = useState<number | null>(null);
+  const [height, setHeight] = useState<{ px: number; grow: boolean } | null>(null);
   // One row (mode switch, text, send) until the text needs a second line; then the text gets its
   // own row above the controls, as in ChatGPT. Back to one row once the box is empty again.
   const [grown, setGrown] = useState(false);
@@ -86,9 +86,10 @@ export function Composer({ text, setText, className, autoFocus }: { text: string
   useLayoutEffect(() => {
     const el = inner.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => setHeight(el.offsetHeight));
+    // Growing animates; shrinking snaps, so switching back to Ask shows the new state at once.
+    const ro = new ResizeObserver(() => setHeight((h) => ({ px: el.offsetHeight, grow: !!h && el.offsetHeight > h.px })));
     ro.observe(el);
-    setHeight(el.offsetHeight);
+    setHeight({ px: el.offsetHeight, grow: false });
     return () => ro.disconnect();
   }, []);
   useEffect(() => { if (autoFocus && window.matchMedia('(min-width: 768px)').matches) input.current?.focus(); }, [autoFocus]);
@@ -131,8 +132,8 @@ export function Composer({ text, setText, className, autoFocus }: { text: string
   return (
     <form
       onSubmit={(e) => { e.preventDefault(); submit(); }}
-      className={cn('w-full overflow-hidden rounded-[1.75rem] bg-muted transition-[height] duration-200 ease-out motion-reduce:transition-none dark:bg-muted', className)}
-      style={height === null ? undefined : { height }}
+      className={cn('w-full overflow-hidden rounded-[1.75rem] bg-muted dark:bg-muted', height?.grow && 'transition-[height] duration-200 ease-out motion-reduce:transition-none', className)}
+      style={height === null ? undefined : { height: height.px }}
       aria-label="Ask about the chart"
     >
       <div
