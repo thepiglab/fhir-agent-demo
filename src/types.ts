@@ -19,6 +19,11 @@ export interface ChartPatient {
   age?: number | null;
   as_of: string | null;
   shard: string;
+  /** Problem-list labels (up to 4) and medication labels (up to 2), for telling patients apart. */
+  problems?: string[];
+  medications?: string[];
+  /** Resources in the chart by type (Encounter, DocumentReference, …). */
+  counts?: Record<string, number>;
   [key: string]: unknown;
 }
 

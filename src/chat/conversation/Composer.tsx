@@ -2,7 +2,7 @@
 // Ask mode: an auto-growing textarea (Enter sends, Shift+Enter a new line). Benchmark mode: the
 // chosen benchmark question (SHELL's BenchmarkQuestion). Bottom row: the Ask / Benchmark switch
 // and the round send button, which turns into Stop while a run streams.
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { ArrowUpIcon, FlaskConicalIcon, MessageSquareIcon, SquareIcon } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -45,17 +45,52 @@ export function send(text: string): boolean {
 export function Composer({ text, setText, className, autoFocus }: { text: string; setText: (t: string) => void; className?: string; autoFocus?: boolean }) {
   useApp(['mode', 'question', 'model', 'busy', 'patient']);
   const input = useRef<HTMLTextAreaElement>(null);
+  const inner = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState<number | null>(null);
+  // One row (mode switch, text, send) until the text needs a second line; then the text gets its
+  // own row above the controls, as in ChatGPT. Back to one row once the box is empty again.
+  const [grown, setGrown] = useState(false);
+  const benchmark = app.mode === 'benchmark';
+  const expanded = benchmark || grown;
 
-  // Grow with the text, 1 to 8 lines.
-  useLayoutEffect(() => {
+  // Grow with the text, 1 to 8 lines. Re-measured when the text changes and when the box's width
+  // changes (a measure taken mid-layout at a narrow width must not stick); an empty box is one line.
+  const measure = useRef<() => void>(() => {});
+  measure.current = () => {
     const el = input.current;
     if (!el) return;
     el.style.height = 'auto';
-    const line = parseFloat(getComputedStyle(el).lineHeight) || 24;
+    const cs = getComputedStyle(el);
+    const line = parseFloat(cs.lineHeight) || 24;
     const max = line * 8;
+    if (!text) {
+      if (grown) setGrown(false);
+      el.style.height = `${line + parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom)}px`;
+      el.style.overflowY = 'hidden';
+      return;
+    }
+    if (!grown && (el.scrollHeight > line * 1.5 || text.includes('\n'))) setGrown(true);
     el.style.height = `${Math.min(el.scrollHeight, max)}px`;
     el.style.overflowY = el.scrollHeight > max ? 'auto' : 'hidden';
-  }, [text, app.mode]);
+  };
+  useLayoutEffect(() => measure.current(), [text, app.mode, grown]);
+  useLayoutEffect(() => {
+    const el = input.current;
+    if (!el) return;
+    let width = el.clientWidth;
+    const ro = new ResizeObserver(() => { if (el.clientWidth !== width) { width = el.clientWidth; measure.current(); } });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [app.mode]);
+  // The box animates to its content's height (mode switch, growing to two rows, a new question).
+  useLayoutEffect(() => {
+    const el = inner.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setHeight(el.offsetHeight));
+    ro.observe(el);
+    setHeight(el.offsetHeight);
+    return () => ro.disconnect();
+  }, []);
   useEffect(() => { if (autoFocus && window.matchMedia('(min-width: 768px)').matches) input.current?.focus(); }, [autoFocus]);
 
   // Benchmark mode has no textarea, so Enter needs an explicit shortcut.
@@ -80,7 +115,6 @@ export function Composer({ text, setText, className, autoFocus }: { text: string
     if (send(text) && app.mode === 'ask') setText('');
   };
   const reason = app.busy ? '' : blocked(text);
-  const benchmark = app.mode === 'benchmark';
 
   const button = app.busy ? (
     <button type="button" onClick={stop} aria-label="Stop the run"
@@ -97,13 +131,22 @@ export function Composer({ text, setText, className, autoFocus }: { text: string
   return (
     <form
       onSubmit={(e) => { e.preventDefault(); submit(); }}
-      className={cn('w-full rounded-3xl bg-muted transition-colors dark:bg-muted', className)}
+      className={cn('w-full overflow-hidden rounded-[1.75rem] bg-muted transition-[height] duration-200 ease-out motion-reduce:transition-none dark:bg-muted', className)}
+      style={height === null ? undefined : { height }}
       aria-label="Ask about the chart"
     >
-      {/* Both modes share a fixed viewport; the mode controls stay in one place. */}
-      <div className="h-40 overflow-y-auto overscroll-contain sm:h-36">
+      <div
+        ref={inner}
+        className={cn(
+          'grid gap-x-1 p-2',
+          expanded
+            ? "grid-cols-[minmax(0,1fr)_auto] [grid-template-areas:'text_text'_'modes_send']"
+            : "grid-cols-[auto_minmax(0,1fr)_auto] items-center [grid-template-areas:'modes_text_send']",
+        )}
+      >
+      <div className={cn('[grid-area:text] min-w-0', expanded && 'max-h-[min(20rem,45vh)] overflow-y-auto overscroll-contain')}>
       {benchmark ? (
-        <BenchmarkQuestion className="px-4 pt-3.5" />
+        <BenchmarkQuestion className="px-2 pt-1.5 pb-1" />
       ) : (
         <textarea
           ref={input}
@@ -116,28 +159,32 @@ export function Composer({ text, setText, className, autoFocus }: { text: string
           placeholder={`Ask about ${firstName()}'s chart`}
           aria-label="Question about the chart"
           enterKeyHint="send"
-          className="block w-full resize-none border-0 bg-transparent px-4 pt-3.5 pb-1 text-[15px] leading-6 shadow-none outline-none ring-0 placeholder:text-muted-foreground focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
+          className={cn(
+            'block w-full resize-none border-0 bg-transparent text-[15px] leading-6 shadow-none outline-none ring-0 placeholder:text-muted-foreground focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0',
+            expanded ? 'px-2 pt-1.5 pb-2' : 'px-2 py-1',
+          )}
         />
       )}
       </div>
-      <div className="flex items-center justify-between gap-2 px-2.5 pt-1 pb-2.5">
-        <div className="flex items-center gap-0.5" role="group" aria-label="Question mode">
+        <div className="[grid-area:modes] flex items-center gap-0.5 self-end" role="group" aria-label="Question mode">
           {MODES.map(([mode, label, icon]) => (
-            <button key={mode} type="button" data-benchmark-mode={mode === 'benchmark' ? '' : undefined} aria-pressed={app.mode === mode} disabled={app.busy} onClick={() => setMode(mode)}
+            <button key={mode} type="button" data-benchmark-mode={mode === 'benchmark' ? '' : undefined} aria-pressed={app.mode === mode} aria-label={label} disabled={app.busy} onClick={() => setMode(mode)}
               className={cn(
-                'flex h-7 items-center gap-1.5 rounded-full px-2.5 text-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-60 [&_svg]:size-3.5',
+                'flex h-8 items-center gap-1.5 rounded-full px-2.5 text-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-60 [&_svg]:size-3.5',
                 app.mode === mode ? 'bg-background text-foreground shadow-xs dark:bg-foreground/10' : 'text-muted-foreground hover:text-foreground',
               )}>
-              {icon}{label}
+              {icon}<span className={cn(!expanded && 'max-[480px]:hidden')}>{label}</span>
             </button>
           ))}
         </div>
+        <div className="[grid-area:send] self-end">
         {reason ? (
           <Tooltip>
             <TooltipTrigger asChild><span tabIndex={0} className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring/50">{button}</span></TooltipTrigger>
             <TooltipContent side="top">{reason}</TooltipContent>
           </Tooltip>
         ) : button}
+        </div>
       </div>
     </form>
   );

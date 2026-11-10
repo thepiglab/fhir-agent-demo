@@ -6,7 +6,6 @@ import { useStickToBottomContext } from 'use-stick-to-bottom';
 import {
   Conversation as Thread, ConversationContent, ConversationScrollButton,
 } from '@/components/ai-elements/conversation';
-import { Suggestion } from '@/components/ai-elements/suggestion';
 import { cn } from '@/lib/utils';
 import { app, setMode } from '../../app/state.ts';
 import { storage } from '../../app/dom.ts';
@@ -15,37 +14,18 @@ import { ChartToggle } from '../shell/ChartToggle.tsx';
 import { ModelCard } from '../model/ModelCard.tsx';
 import { useApp, useEvent } from '../store.ts';
 import { Composer, firstName, send } from './Composer.tsx';
-import { suggestionsFor, useThread } from './hooks.ts';
+import { useThread } from './hooks.ts';
 import { RunView } from './RunView.tsx';
+import { SuggestionRows, useSuggestionPool } from './SuggestionRows.tsx';
 
 const VOICES = [['physician', 'Physician'], ['nurse', 'Nurse'], ['clerical', 'Front desk']] as const;
 type Voice = (typeof VOICES)[number][0];
 const savedVoice = storage.get<string>('voice', 'physician');
 
-/** Three questions for this patient in this voice; the config's natural requests when the summary has none. */
-function useSuggestions(patient: string | undefined, voice: Voice): string[] | null {
-  const [state, setState] = useState<{ key: string; list: string[] } | null>(null);
-  const key = `${patient} ${voice}`;
-  useEffect(() => {
-    if (!patient) return;
-    let live = true;
-    void suggestionsFor(patient).then((all) => {
-      let list = all.filter((s) => s.voice === voice).map((s) => s.question);
-      if (!list.length) {
-        const index = VOICES.findIndex(([v]) => v === voice);
-        list = Object.values(app.config?.requests ?? {}).map((l) => l[index] ?? l[0]).filter((q): q is string => !!q);
-      }
-      if (live) setState({ key, list: list.slice(0, 3) });
-    });
-    return () => { live = false; };
-  }, [patient, voice, key]);
-  return state?.key === key ? state.list : null;
-}
-
 function EmptyState({ text, setText }: { text: string; setText: (t: string) => void }) {
   useApp(['mode', 'model', 'patient', 'ready']);
   const [voice, setVoice] = useState<Voice>(VOICES.some(([v]) => v === savedVoice) ? (savedVoice as Voice) : 'physician');
-  const list = useSuggestions(app.patient?.id, voice);
+  const list = useSuggestionPool(app.patient?.id, voice);
   const benchmark = app.mode === 'benchmark';
   const pick = (v: Voice) => { setVoice(v); storage.set('voice', v); };
   const choose = (q: string) => {
@@ -58,7 +38,8 @@ function EmptyState({ text, setText }: { text: string; setText: (t: string) => v
   };
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
-      <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col justify-center px-4 pt-6 pb-[12vh] sm:px-6">
+      {/* Anchored from the top, not centred: the composer grows downward and nothing above it moves. */}
+      <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col px-4 pt-[max(1.5rem,14vh)] pb-12 sm:px-6">
         <div className="animate-in fade-in-0 slide-in-from-bottom-1 text-center duration-300">
           <h1 className="font-semibold text-2xl tracking-tight sm:text-[1.75rem]">What would you like to know about {firstName()}?</h1>
           <p className="mx-auto mt-2 min-h-12 max-w-md text-muted-foreground text-sm leading-6">
@@ -67,16 +48,10 @@ function EmptyState({ text, setText }: { text: string; setText: (t: string) => v
         </div>
         <ModelCard className="mx-auto mt-6 w-full max-w-xl" />
         <Composer text={text} setText={setText} autoFocus className="mt-7 animate-in fade-in-0 duration-300" />
-        {/* Keep this space in both modes so the centered composer never shifts. */}
-          <div inert={benchmark} aria-hidden={benchmark || undefined}
-            className={cn('mt-5 flex flex-col items-center gap-3', benchmark && 'invisible')}>
-            <div className="flex flex-wrap justify-center gap-2" role="list" aria-label="Suggested questions">
-              {(list ?? []).map((q) => (
-                <Suggestion key={q} suggestion={q} onClick={choose} role="listitem" variant="ghost"
-                  className="h-auto max-w-full whitespace-normal rounded-full border border-border/70 px-4 py-2 text-left font-normal text-muted-foreground text-sm hover:bg-muted hover:text-foreground" />
-              ))}
-              {list && !list.length ? <p className="text-muted-foreground text-sm">No suggestion fits this chart. Ask anything.</p> : null}
-            </div>
+        {!benchmark ? (
+          <div className="mt-6 flex flex-col items-center gap-3 animate-in fade-in-0 duration-500">
+            {list ? <SuggestionRows key={`${app.patient?.id} ${voice}`} list={list} onChoose={choose} /> : <div className="h-[4.75rem]" aria-hidden="true" />}
+            {list && !list.length ? <p className="text-muted-foreground text-sm">No suggestion fits this chart. Ask anything.</p> : null}
             <div className="flex items-center gap-1 text-xs" role="group" aria-label="Who is asking">
               {VOICES.map(([v, label], i) => (
                 <span key={v} className="flex items-center gap-1">
@@ -89,6 +64,7 @@ function EmptyState({ text, setText }: { text: string; setText: (t: string) => v
               ))}
             </div>
           </div>
+        ) : null}
       </div>
     </div>
   );

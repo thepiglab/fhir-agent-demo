@@ -10,6 +10,7 @@ import {
   DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
   DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { app, setDev } from '../../app/state.ts';
 import { initModel } from '../../app/model-gate.ts';
@@ -49,7 +50,9 @@ function CohortItem({ c, active }: { c: Cohort; active: boolean }) {
 
 function DatasetPicker() {
   const { cohort, cohorts, dev } = useApp(['ready', 'dev']);
-  if (!cohort) return <span className="ml-1 h-4 w-28 animate-pulse rounded bg-muted" aria-hidden="true" />;
+  // One dataset to show (the held-out natural prompts): nothing to choose, so no picker.
+  const choices = cohorts.filter((c) => dev || !isTechnical(c));
+  if (!cohort || choices.length <= 1) return null;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -84,11 +87,16 @@ function MoreMenu() {
   useEffect(() => onTheme(setThemeState), []);
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-foreground" aria-label="More">
-          <Ellipsis />
-        </Button>
-      </DropdownMenuTrigger>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon-sm" className="size-8 rounded-full text-muted-foreground hover:text-foreground" aria-label="Settings">
+              <Ellipsis />
+            </Button>
+          </DropdownMenuTrigger>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">Settings</TooltipContent>
+      </Tooltip>
       <DropdownMenuContent align="end" sideOffset={8} className="w-52">
         <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Theme</DropdownMenuLabel>
         <DropdownMenuRadioGroup value={theme} onValueChange={(v) => setTheme(v as Theme)}>
@@ -144,9 +152,13 @@ export function TopBar() {
       </a>
       <DatasetPicker />
       <div className="flex-1" />
-      <ModelStatusButton />
-      <ShortcutsButton />
-      <MoreMenu />
+      {/* One group: the model's status, then settings, then help. */}
+      <div className="flex items-center gap-0.5 rounded-full border border-border/60 p-0.5">
+        <ModelStatusButton />
+        <span aria-hidden="true" className="mx-0.5 h-4 w-px bg-border" />
+        <MoreMenu />
+        <ShortcutsButton />
+      </div>
     </header>
   );
 }

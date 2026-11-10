@@ -60,16 +60,16 @@ export function BenchmarkQuestion({ className }: { className?: string }) {
   const shuffleBtn = <IconAction label="Shuffle (any patient)" onClick={doShuffle} disabled={busy}><Shuffle /></IconAction>;
   // The one entry to the benchmark browser: labelled, since it is how to find a question by specialty, difficulty, who asks, …
   const browseBtn = (
-    <Button
-      type="button" variant="ghost" size="sm" disabled={busy} onClick={openQuestionBrowser}
-      title={`Browse questions (${isMac ? '⌘K' : 'Ctrl+K'})`}
-      aria-label={filtersOn ? `Browse questions (${filtersOn} ${filtersOn === 1 ? 'filter' : 'filters'} on)` : 'Browse questions'}
-      className="relative h-7 gap-1.5 px-2 text-xs font-normal text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground dark:hover:bg-foreground/10"
-    >
-      <ListFilter className="size-3.5" aria-hidden="true" />
-      Browse
-      {!!filtersOn && <span className="rounded bg-brand-soft px-1 text-[11px] leading-4 text-foreground tabular-nums">{filtersOn}</span>}
-    </Button>
+    <IconAction label={`Browse questions (${isMac ? '⌘K' : 'Ctrl+K'})`} onClick={openQuestionBrowser} disabled={busy} badge={filtersOn}>
+      <ListFilter />
+    </IconAction>
+  );
+  // The question's actions, kept small at the top right of the block instead of a row of their own.
+  const actions = (withNext: boolean, withClear: boolean) => (
+    <div className="-mt-1 -mr-1.5 flex shrink-0 items-center" role="group" aria-label="Question actions">
+      {shuffleBtn}{withNext && nextBtn}{browseBtn}
+      {withClear && <IconAction label="Clear" onClick={clearQuestion} disabled={busy}><X /></IconAction>}
+    </div>
   );
   const note = b.note ? <p role="status" className="mt-1 text-xs text-muted-foreground">{b.note}</p> : null;
 
@@ -102,7 +102,7 @@ export function BenchmarkQuestion({ className }: { className?: string }) {
       <div className={cn('px-1', className)}>
         <div className="flex items-center gap-1">
           <span className="mr-auto text-sm text-muted-foreground">No question chosen</span>
-          {shuffleBtn}{nextBtn}{browseBtn}
+          {actions(true, false)}
         </div>
         {note}
       </div>
@@ -111,24 +111,26 @@ export function BenchmarkQuestion({ className }: { className?: string }) {
 
   return (
     <div className={cn('min-w-0 px-1', className)} role="group" aria-label="Benchmark question">
-      <QuestionCaption q={q} />
+      <div className="flex items-start gap-2">
+        <QuestionCaption q={q} className="min-w-0 flex-1 pt-0.5" />
+        {actions(true, true)}
+      </div>
       <Prompt key={q.id} q={q} />
       {note}
-      <div className="mt-1.5 -ml-1.5 flex items-center gap-0.5">
-        {shuffleBtn}
-        {nextBtn}
-        {browseBtn}
-        <IconAction label="Clear" onClick={clearQuestion} disabled={busy}><X /></IconAction>
-      </div>
     </div>
   );
 }
 
-/** The exact prompt, clamped to two lines, with a small "more" toggle when it is longer. */
+/** The prompt's question, clamped to two lines ("more" when longer). The answer contract the
+ *  benchmark appends ("Reply with only JSON: …") is sent unchanged but shown only on request. */
 function Prompt({ q }: { q: ChosenQuestion }) {
   const text = useRef<HTMLParagraphElement>(null);
   const [open, setOpen] = useState(false);
   const [long, setLong] = useState(false);
+  const [format, setFormat] = useState(false);
+  const cut = q.prompt.search(/\n\s*Reply with only JSON/);
+  const asked = cut >= 0 ? q.prompt.slice(0, cut).trim() : q.prompt;
+  const contract = cut >= 0 ? q.prompt.slice(cut).trim() : '';
   useLayoutEffect(() => {
     const el = text.current;
     if (!el || open) return;
@@ -144,16 +146,27 @@ function Prompt({ q }: { q: ChosenQuestion }) {
         ref={text}
         className={cn('text-[15px] leading-6 break-words whitespace-pre-wrap', open ? 'max-h-48 overflow-y-auto' : 'line-clamp-2')}
       >
-        {q.prompt}
+        {asked}
       </p>
-      {(long || open) && (
-        <button
-          type="button" aria-expanded={open} onClick={() => setOpen(!open)}
-          className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:underline focus-visible:outline-none"
-        >
-          {open ? 'less' : 'more'}
-        </button>
-      )}
+      <div className="flex gap-3 text-xs text-muted-foreground">
+        {(long || open) && (
+          <button
+            type="button" aria-expanded={open} onClick={() => setOpen(!open)}
+            className="underline-offset-4 hover:text-foreground hover:underline focus-visible:underline focus-visible:outline-none"
+          >
+            {open ? 'less' : 'more'}
+          </button>
+        )}
+        {contract && (
+          <button
+            type="button" aria-expanded={format} onClick={() => setFormat(!format)}
+            className="underline-offset-4 hover:text-foreground hover:underline focus-visible:underline focus-visible:outline-none"
+          >
+            {format ? 'hide answer format' : 'answer format'}
+          </button>
+        )}
+      </div>
+      {format && <p className="mt-1 max-h-32 overflow-y-auto rounded-md bg-foreground/[0.05] px-2 py-1.5 font-mono text-[11.5px] leading-5 break-words whitespace-pre-wrap text-muted-foreground">{contract}</p>}
     </div>
   );
 }

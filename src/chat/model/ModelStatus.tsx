@@ -5,6 +5,7 @@ import { ChevronRight, Download, RotateCcw, Trash2, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { MODEL_FACTS } from '../../model/config.ts';
 import type { ModelStatus as Status } from '../../app/state.ts';
@@ -36,14 +37,19 @@ export function ModelStatusButton() {
   const { text, dot, pulse } = statusText(s);
   return (
     <Popover>
-      <PopoverTrigger asChild>
-        <Button variant="ghost" size="sm" className="gap-2 px-2 font-normal text-muted-foreground hover:text-foreground" aria-label={`Model: ${text}. Details`}>
-          {pulse
-            ? <DotMatrix className="size-3 [&>span]:size-[2.5px]" />
-            : <span aria-hidden="true" className={cn('size-1.5 shrink-0 rounded-full', dot)} />}
-          <span className="tabular-nums max-[640px]:sr-only">{text}</span>
-        </Button>
-      </PopoverTrigger>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <PopoverTrigger asChild>
+            <Button variant="ghost" size="sm" className="h-8 gap-2 rounded-full px-2.5 font-normal text-muted-foreground hover:text-foreground" aria-label={`Model: ${text}. Details`}>
+              {pulse
+                ? <DotMatrix className="size-3 [&>span]:size-[2.5px]" />
+                : <span aria-hidden="true" className={cn('size-1.5 shrink-0 rounded-full', dot)} />}
+              <span className="tabular-nums max-[640px]:sr-only">{text}</span>
+            </Button>
+          </PopoverTrigger>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">Model status and storage</TooltipContent>
+      </Tooltip>
       <PopoverContent align="end" sideOffset={8} className="w-[min(22rem,calc(100vw-1.5rem))] p-0">
         <ModelDetails status={s} />
       </PopoverContent>

@@ -85,7 +85,7 @@ export function ShortcutsButton() {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-foreground" aria-label="Keyboard shortcuts" onClick={openShortcuts}>
+        <Button variant="ghost" size="icon-sm" className="size-8 rounded-full text-muted-foreground hover:text-foreground" aria-label="Keyboard shortcuts" onClick={openShortcuts}>
           <CircleQuestionMark />
         </Button>
       </TooltipTrigger>
