@@ -119,15 +119,13 @@ function MoreMenu() {
             <DropdownMenuSeparator />
           </>
         ) : null}
-        {dev ? (
-          <DropdownMenuCheckboxItem
-            checked={replyOn}
-            onCheckedChange={(on) => { setReplyToggle(on === true); setReplyOn(on === true); }}
-            title="LFM3 writes a few sentences after its answer, shown only if its checks pass (including the write log). Its replies were wrong on 20-33% of episodes in the agent-scope pilot, so it is off by default."
-          >
-            Written summary (experimental)
-          </DropdownMenuCheckboxItem>
-        ) : null}
+        <DropdownMenuCheckboxItem
+          checked={replyOn}
+          onCheckedChange={(on) => { setReplyToggle(on === true); setReplyOn(on === true); }}
+          title="A few sentences after the answer, shown only when its checks against the cited records pass."
+        >
+          Written summary
+        </DropdownMenuCheckboxItem>
         <DropdownMenuCheckboxItem
           checked={longCharts()}
           onCheckedChange={(on) => { setLongCharts(on === true); location.reload(); }}

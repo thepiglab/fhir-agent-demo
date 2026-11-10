@@ -49,7 +49,6 @@ export function ReplyView({ run, dev }: { run: Run; dev: boolean }) {
     return (
       <div>
         <Cited text={reply.text} refs={reply.refs} />
-        <p className="mt-1 text-muted-foreground text-xs" data-experimental>Written summary · experimental. The answer card below is the checked result.</p>
       </div>
     );
   }
