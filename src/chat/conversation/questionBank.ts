@@ -75,7 +75,6 @@ function templates(s: Summary, voice: Voice, g: unknown, counts: Record<string, 
   const upcoming = s.appointments?.upcoming ?? [];
   const past = s.appointments?.past ?? [];
   const orders = firstUsable((s.orders ?? []).filter((o) => o.status === 'active'), 1);
-  const docs = firstUsable(s.documents?.recent, 2);
   const alerts = firstUsable(s.alerts, 1);
   const vitals = (s.vitals ?? []).map((v) => v.name);
   const visits = s.encounters?.total ?? counts.Encounter ?? 0;
@@ -84,7 +83,9 @@ function templates(s: Summary, voice: Voice, g: unknown, counts: Record<string, 
   if (voice === 'physician') {
     out.push(
       !!trended[0] && `How has ${his} ${lower(trended[0].name)} moved since ${month(trended[0].previous?.date)}, and is the latest value in range?`,
-      !!trended[1] && `Compare ${his} last two ${lower(trended[1].name)} results. Is the change clinically meaningful?`,
+      trended.length > 1 && `Compare the two most recent results for each of ${his} repeated lab tests. What changed?`,
+      (problems.length > 0 || meds.length > 0) && `Summarize ${his} documented conditions, medications and allergies, and flag anything missing.`,
+      problems.length > 1 && `Which of ${his} conditions are marked active, and when did each start?`,
       !!problems[0] && `Is ${lower(problems[0])} still active, and what is ${he} being treated with for it?`,
       !!problems[1] && `What did the most recent note say about ${his} ${lower(problems[1])}?`,
       problems.length > 1 && `Which of ${his} problems were addressed at the most recent visit, and what changed in the plan?`,
@@ -93,21 +94,24 @@ function templates(s: Summary, voice: Voice, g: unknown, counts: Record<string, 
       flagged.length > 0 && `Which of ${his} recent labs are out of range, and was any of them repeated?`,
       !!orders[0] && `Has the ${lower(orders[0])} been resulted? If so, what did it show?`,
       labs.length > 2 && `Summarize ${his} most recent labs: what stands out?`,
-      visits > 0 && `What was the reason for ${his} most recent visit, and what was decided?`,
+      visits > 0 && `Summarize ${his} most recent visit: the date, the reason, and any linked results or notes.`,
+      (s.orders?.length ?? 0) > 1 && `Which orders are still open in ${his} chart, and has any of them been completed?`,
       has('DiagnosticReport') && `What did ${his} most recent diagnostic report conclude?`,
     );
   } else if (voice === 'nurse') {
     out.push(
-      vitals.length > 0 && `What were ${his} last vital signs, and was anything abnormal?`,
+      vitals.length > 0 && `Show ${his} latest vital signs and compare each with the previous measurement.`,
       vitals.includes('Blood pressure') && `What was ${his} last blood pressure, and was it rechecked afterwards?`,
       !!allergies[0] && `What reaction is recorded for ${his} ${lower(allergies[0])} allergy, and how severe is it?`,
       !allergies[0] && (s.allergies?.none_known?.length ?? 0) > 0 && `Is "no known allergies" documented for ${him}, and when was it last confirmed?`,
       !!meds[0] && `What dose and schedule is ${he} on for ${drug(meds[0])}?`,
+      meds.length > 1 && `List ${his} current medications with dose, route and frequency, and flag any missing instructions.`,
+      has('MedicationRequest') && `Which of ${his} prescriptions have a dispensing record, and which have no documented fill?`,
       !!meds[1] && `When was ${his} ${drug(meds[1])} last ordered, and is the order still active?`,
       (has('MedicationAdministration') || has('MedicationDispense')) && `Which medications were given or dispensed to ${him} most recently, and when?`,
       !!alerts[0] && `Is there anything I should know before I see ${him}, like safety flags or special needs?`,
       !!labs[0] && `When was ${his} last ${lower(labs[0].name)} drawn, and what was the result?`,
-      !!docs[0] && `What does the latest ${lower(docs[0])} say about follow-up for ${him}?`,
+      (s.documents?.total ?? 0) > 0 && `Find ${his} most recent clinical note and summarize its follow-up instructions.`,
       has('Task') && `Are there open care tasks on ${his} chart, and who are they assigned to?`,
       has('Specimen') && `Is there a specimen from ${him} still waiting on a result?`,
     );
@@ -117,14 +121,14 @@ function templates(s: Summary, voice: Voice, g: unknown, counts: Record<string, 
       upcoming.length === 0 && past.length > 0 && `When was ${his} last appointment, and has a follow-up been booked since?`,
       past.some((a) => /cancel|noshow|no-show/i.test(a.status ?? '')) && `Was any of ${his} appointments cancelled or missed, and was it rebooked?`,
       [...upcoming, ...past].some((a) => a.with?.length) && `Which clinic and provider does ${he} usually see?`,
-      visits > 1 && `How many visits has ${he} had in the past six months, and where were they?`,
+      visits > 1 && `List ${his} three most recent visits with their dates, types and locations.`,
+      (s.documents?.total ?? 0) > 0 && `What documents are on file for ${him}, with their types, dates and status?`,
       !!orders[0] && `Is there a referral or order for ${him} that still needs to be scheduled?`,
-      !!alerts[0] && `Does ${he} need an interpreter or any other help at check-in?`,
       has('Coverage') && `What insurance is on file for ${him}, and is the coverage active?`,
       has('Communication') && `Are there messages from ${him} or ${his} family still waiting for a reply?`,
       has('Task') && `Is there a front-desk task on ${his} chart, such as a call back or form to send?`,
       has('Consent') && `Is there a signed consent or release form on file for ${him}?`,
-      `What's the best way to contact ${him} or ${his} caregiver about an appointment change?`,
+      `What contact preferences and interpreter needs are documented for ${him}?`,
     );
   }
   return out.filter((q): q is string => !!q);
