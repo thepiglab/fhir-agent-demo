@@ -13,7 +13,8 @@ export const SUMMARY_SYSTEM =
   + 'FHIR chart and returned a structured answer with the records it used. Write the reply the clinician sees.';
 export const SUMMARY_RULES = `Write 1-4 sentences in plain clinical language.
 - Lead with the direct answer to the request.
-- Use only facts in the structured answer and the records shown. Cite each fact with its record reference in square brackets, e.g. [Observation/abc123].
+- Use only facts in the structured answer and the records shown. After each fact, cite the number of its record in square brackets, e.g. [1] or [2][3]. Every sentence that states a value, date or status from the chart needs at least one citation.
+- Refer to the patient as "the patient" or by pronoun. Never write record ids, the patient's id or the MRN.
 - If the structured answer has null for a field, say the chart does not document it; never infer that it is normal, absent or not needed.
 - Say a record was created, changed or deleted only if the write log shows it.
 - Do not give treatment, dosing or management recommendations of your own.
@@ -80,13 +81,27 @@ export function replyEvidence(cited: string[], read: Set<string>, resources: Map
 
 /** pilot summary_messages(). */
 export function replyMessages(input: ReplyInput): { role: 'system' | 'user'; content: string }[] {
-  const records = input.evidence.map((e) => `[${e.ref}] ${e.json}`).join('\n') || '(none)';
+  // Numbered, so the writer cites [1] instead of copying a 24-character id; expandCitations()
+  // turns the numbers back into references before the checks and the page see the reply.
+  const records = input.evidence.map((e, i) => `[${i + 1}] ${e.json}`).join('\n') || '(none)';
   const writes = input.writes.map((w) => `${w.method} ${w.ref} -> ${w.status}`).join('\n') || '(no writes)';
   const user = `## Clinician's request\n${input.question}\n\n`
     + `## Structured answer from the search agent\n\`\`\`json\n${JSON.stringify(input.answer ?? null, null, 1)}\n\`\`\`\n\n`
     + `## Records the agent cited\n${records}\n\n## Write log\n${writes}\n\n`
     + `## Instructions\n${SUMMARY_RULES}`;
   return [{ role: 'system', content: SUMMARY_SYSTEM }, { role: 'user', content: user }];
+}
+
+/**
+ * The writer's numbered citations as references: "[2]" and "[1, 3]" become "[Observation/…]" for
+ * the records shown as [2] (and [1], [3]). A number outside the list stays as written, so the
+ * checks refuse it ("states numbers not in the cited records").
+ */
+export function expandCitations(text: string, evidence: ReplyInput['evidence']): string {
+  return text.replace(/\[(\d{1,2}(?:\s*[,;]\s*\d{1,2})*)\]/g, (whole, list: string) => {
+    const refs = list.split(/[,;]/).map((n) => evidence[Number(n.trim()) - 1]?.ref);
+    return refs.every(Boolean) ? refs.map((r) => `[${r}]`).join(' ') : whole;
+  });
 }
 
 /** pilot clean_reply(): no thinking block, trimmed. */
@@ -137,6 +152,7 @@ export function checkReply(reply: string, input: ReplyInput): ReplyCheck {
   if (unsupported.length) problems.push(`states numbers not in the cited records: ${unsupported.join(', ')}`);
   if (words > MAX_WORDS) problems.push(`too long (${words} words)`);
   if (/```|^\s*[{[]/.test(reply)) problems.push('not plain sentences');
+  if (/\b(?:[0-9a-f]{20,}|SYN-[0-9a-f]{6,})\b/i.test(reply.replace(REF, ' '))) problems.push('writes a raw id');
   problems.push(...writeClaims(reply, input.writes, shown));
   return { ok: !problems.length, problems, refs, words };
 }

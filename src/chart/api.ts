@@ -27,7 +27,7 @@ import { loadTokenizer } from '../fhir/tokenizer.ts';
 import type { ModelReply } from '../fhir/context1.ts';
 import { LONG_CONTEXT_TOKENS, MODEL_REPETITION_PENALTY, activeHarness, contextTokens } from '../model/config.ts';
 import type { Inputs, Trace as TraceBase } from './trace.ts';
-import { checkReply, cleanReply, replyEvidence, replyMessages } from './reply.ts';
+import { checkReply, cleanReply, expandCitations, replyEvidence, replyMessages } from './reply.ts';
 import { GUARD_TEXT, THINKING_BUDGET, thinkingGuard } from './guard.ts';
 import type { GuardStop } from './guard.ts';
 import type { ReplyInput, ReplyResult } from './reply.ts';
@@ -655,16 +655,32 @@ async function writeReply(input: ReplyInput, emit: (event: Event) => void, signa
   const session = model.create_session();
   try {
     emit({ event: 'reply_start' });
-    const gen = session.generate(replyMessages(input) as ChatMessage[], REPLY_OPTIONS);
-    for await (const event of gen) {
-      if (signal?.aborted) { gen.cancel(); break; }
-      if (event.type === 'prefill') emit({ event: 'reply_progress', done: event.done, total: event.total });
+    const messages = replyMessages(input) as ChatMessage[];
+    const write = async (msgs: ChatMessage[]): Promise<string | null> => {
+      const gen = session.generate(msgs, REPLY_OPTIONS);
+      for await (const event of gen) {
+        if (signal?.aborted) { gen.cancel(); break; }
+        if (event.type === 'prefill') emit({ event: 'reply_progress', done: event.done, total: event.total });
+      }
+      const r = await gen.result;
+      result.usage = {
+        prompt_tokens: (result.usage.prompt_tokens ?? 0) + r.usage.prompt_tokens,
+        completion_tokens: (result.usage.completion_tokens ?? 0) + r.usage.completion_tokens,
+      };
+      return signal?.aborted ? null : cleanReply(r.message.content ?? '');
+    };
+    let draft = await write(messages);
+    if (draft === null) return { ...result, state: 'stopped' };
+    let check = checkReply(expandCitations(draft, input.evidence), input);
+    // One rewrite when the only problem is a missing citation: ask for the record numbers.
+    if (!check.ok && input.evidence.length && check.problems.every((p) => p === 'cites no record' || p === 'writes a raw id')) {
+      const retry = await write([...messages, { role: 'assistant', content: draft } as ChatMessage,
+        { role: 'user', content: 'Rewrite it: put the record number in square brackets, e.g. [1], after each fact, and write no ids.' } as ChatMessage]);
+      if (retry === null) return { ...result, state: 'stopped' };
+      draft = retry;
+      check = checkReply(expandCitations(draft, input.evidence), input);
     }
-    const r = await gen.result;
-    result.usage = { prompt_tokens: r.usage.prompt_tokens, completion_tokens: r.usage.completion_tokens };
-    if (signal?.aborted) return { ...result, state: 'stopped' };
-    result.text = cleanReply(r.message.content ?? '');
-    const check = checkReply(result.text, input);
+    result.text = expandCitations(draft, input.evidence);
     result.state = check.ok ? 'shown' : 'refused';
     result.problems = check.problems;
     result.refs = check.refs;

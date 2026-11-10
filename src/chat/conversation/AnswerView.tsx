@@ -193,12 +193,19 @@ function NotFound({ trace }: { trace: RunTrace }) {
     <div className="space-y-3">
       <p className="text-[15px] leading-7">I could not find this in the chart.</p>
       {searched.length ? (
-        <div>
-          <p className="mb-1 text-muted-foreground text-xs">What was searched</p>
-          <ul className="space-y-1 text-muted-foreground text-sm">
-            {searched.map((s) => <li key={s.call}>{s.plain}{s.outcome ? ` · ${s.outcome}` : ''}</li>)}
-          </ul>
-        </div>
+        // Collapsed by default: the answer is the line above; the searches are there to check it.
+        <Trace>
+          <TraceCollapsible>
+            <TraceCollapsibleTrigger>
+              <TraceLine><TraceTitle>What was searched</TraceTitle><TraceDescription>· {plural(searched.length, 'search', 'searches')}</TraceDescription></TraceLine>
+            </TraceCollapsibleTrigger>
+            <TraceCollapsibleContent>
+              <ul className="space-y-1 text-muted-foreground text-sm">
+                {searched.map((s) => <li key={s.call}>{s.plain}{s.outcome ? ` · ${s.outcome}` : ''}</li>)}
+              </ul>
+            </TraceCollapsibleContent>
+          </TraceCollapsible>
+        </Trace>
       ) : null}
     </div>
   );

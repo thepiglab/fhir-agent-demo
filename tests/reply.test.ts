@@ -2,7 +2,7 @@
 // end to end through /api/ask with a scripted model (search, answer, then the tool-free reply).
 import { existsSync, readFileSync } from 'node:fs';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
-import { checkReply, replyMessages } from '../src/chart/reply.ts';
+import { checkReply, expandCitations, replyMessages } from '../src/chart/reply.ts';
 import type { ReplyInput } from '../src/chart/reply.ts';
 
 const HGB = 'Observation/b64801f28f3fc9544dd17fb0';  // 14.2 g/dL on 2023-03-08
@@ -42,7 +42,8 @@ describe('reply checks', () => {
   it('builds the pilot\'s writer prompt', () => {
     const [system, user] = replyMessages(input);
     expect(system!.content).toMatch(/answer-writing step of an EHR search assistant/);
-    expect(user!.content).toContain(`## Records the agent cited\n[${HGB}] {"resourceType"`);
+    expect(user!.content).toContain(`## Records the agent cited\n[1] {"resourceType"`);
+    expect(user!.content).toMatch(/cite the number of its record in square brackets, e\.g\. \[1\]/);
     expect(user!.content).toContain('## Write log\n(no writes)');
     expect(user!.content).toContain('Write 1-4 sentences');
   });
@@ -119,7 +120,14 @@ describe.skipIf(!existsSync(new URL('data/cohorts.json', PUBLIC)))('reply turn t
     expect(reply).toMatchObject({ state: 'shown', refs: [HGB] });
     const writer = seen.at(-1)!;
     expect(writer.tools).toBe(false);
-    expect(writer.messages[1]!.content).toContain(`[${HGB}] {`);
+    expect(writer.messages[1]!.content).toContain('[1] {');
+  });
+
+  it('turns numbered citations into record references', async () => {
+    const events = await ask('Latest hemoglobin?', 'The latest hemoglobin was 14.2 g/dL on 2023-03-08 [1].');
+    const { reply } = events.find((e) => e.event === 'reply') as { reply: { state: string; refs: string[]; text: string } };
+    expect(reply).toMatchObject({ state: 'shown', refs: [HGB] });
+    expect(reply.text).toContain(`[${HGB}]`);
   });
 
   it('is off unless asked: no reply turn, no third model call', async () => {
@@ -167,5 +175,17 @@ describe('reply numbers', () => {
     expect(checkReply(`Hemoglobin was 14.2 on March 8, 2023 [${HGB}].`, input).ok).toBe(true);
     expect(checkReply(`Hemoglobin was 4.2 [${HGB}].`, input).ok).toBe(false);  // a substring of 14.2
     expect(checkReply(`Hemoglobin was 14.20 g/dL [${HGB}].`, input).ok).toBe(true);
+  });
+});
+
+describe('numbered citations', () => {
+  const evidence = [{ ref: 'Observation/aaaaaaaa1', json: '{}' }, { ref: 'Observation/bbbbbbbb2', json: '{}' }];
+  it('expands [n] and [n, m]; leaves numbers outside the list alone', () => {
+    expect(expandCitations('A [1]. B [1, 2]. C [7].', evidence))
+      .toBe('A [Observation/aaaaaaaa1]. B [Observation/aaaaaaaa1] [Observation/bbbbbbbb2]. C [7].');
+  });
+  it('refuses a raw id', () => {
+    const input = { question: 'q', answer: null, evidence: [], writes: [] };
+    expect(checkReply('Patient 3175428cb0d560259d8c3a17 has none.', input).problems).toContain('writes a raw id');
   });
 });
