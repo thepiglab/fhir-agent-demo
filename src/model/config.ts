@@ -56,12 +56,16 @@ export const CONTEXT_TOKENS = 16384;  // Pillar 6 budget: an L episode fits in 1
 //          overflow, dedup stubs, turn ramp): LFM3 SFT v0.6.1-X16. src/fhir/context1.ts.
 //   'X16v2' X16 with exact token counts (LFM3's tokenizer), a hard cap on real prompt tokens and
 //          pruning to 60%: the LFM3 RL checkpoint. src/fhir/context1_v2.ts.
+//   'Lc'   L with compact search results (harness-suite profile Lc, at 7da3ad1): a successful
+//          searchset Bundle is one line per record, values cut at 300 characters, and the system
+//          prompt gains one harness section; everything else is L's JSON. The LoRA r32 step-200
+//          checkpoint. src/fhir/compact_v2.ts.
 // Switch to 'X16' together with MODEL when the v0.6.1-X16 GGUF is staged. ?harness=L|X16 in the
-// page URL overrides it (for testing; L stays as the fallback). ?harness=X16v2 likewise.
-export type Harness = 'L' | 'X16' | 'X16v2';
+// page URL overrides it (for testing; L stays as the fallback). ?harness=X16v2 and ?harness=Lc likewise.
+export type Harness = 'L' | 'X16' | 'X16v2' | 'Lc';
 export const MODEL_HARNESS: Harness = 'L';
 const HARNESS_KEY = 'fhir-demo-harness';
-const isHarness = (v: unknown): v is Harness => v === 'X16' || v === 'X16v2' || v === 'L';
+export const isHarness = (v: unknown): v is Harness => v === 'X16' || v === 'X16v2' || v === 'L' || v === 'Lc';
 const developerView = (): boolean => {
   try { return JSON.parse(globalThis.localStorage?.getItem('fhir-demo-dev') ?? 'false') === true; } catch { return false; }
 };

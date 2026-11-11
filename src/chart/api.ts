@@ -19,6 +19,7 @@ import { askSystem, taskMessages } from './prompt.ts';
 // before config.json carried them.
 import CONVENTIONS_V0234 from './charting_conventions_v0234.txt?raw';
 import type { LayoutTask } from './prompt.ts';
+import { truthy } from '../fhir/pyrt.ts';
 import type { Rec } from '../fhir/pyrt.ts';
 import type { Tool, ChatMessage, GenerateOptions } from '../../vendor/lfm3-webgpu-pi/Lfm3ForCausalLM.js';
 import type { ChartPatient } from '../types.ts';
@@ -28,9 +29,11 @@ import * as T from './trace.ts';
 import { argumentError, preParse } from '../fhir/tools.ts';
 import { Context1Profile, Episode as HarnessEpisode } from '../fhir/context1.ts';
 import { Context1V2Profile } from '../fhir/context1_v2.ts';
+import { lcSystemPrompt, renderCompactV2 } from '../fhir/compact_v2.ts';
 import { loadTokenizer } from '../fhir/tokenizer.ts';
 import type { ModelReply } from '../fhir/context1.ts';
-import { LONG_CONTEXT_TOKENS, MODEL_SAMPLING, activeHarness, activePromptLayout, contextTokens } from '../model/config.ts';
+import { LONG_CONTEXT_TOKENS, MODEL_SAMPLING, activeHarness, activePromptLayout, contextTokens, isHarness } from '../model/config.ts';
+import type { Harness } from '../model/config.ts';
 import type { Inputs, Trace as TraceBase } from './trace.ts';
 import { checkReply, cleanReply, expandCitations, replyEvidence, replyMessages } from './reply.ts';
 import { GUARD_TEXT, REPLY_CAP, THINKING_BUDGET, thinkingGuard } from './guard.ts';
@@ -76,7 +79,7 @@ interface Payload {
   question?: string;
   /** true: a reply turn after a free-response answer. Off unless asked: the page asks only from its experimental developer toggle. */
   reply?: boolean;
-  /** 'L' or 'X16'; default: the model's harness (src/model/config.ts, ?harness=). */
+  /** 'L', 'Lc', 'X16' or 'X16v2'; default: the model's harness (src/model/config.ts, ?harness=). */
   harness?: string;
   family?: string | null;
   stream?: boolean;
@@ -277,8 +280,8 @@ export interface BenchmarkResult {
 
 /** run_agent's trace; trace.ts's finishTrace fills sources, claims and verification at the end. */
 interface Trace extends TraceBase {
-  /** The harness the run used: L (locked), X16 (src/fhir/context1.ts) or X16v2 (context1_v2.ts). */
-  harness?: 'L' | 'X16' | 'X16v2';
+  /** The harness the run used: L (locked), Lc (src/fhir/compact_v2.ts), X16 (src/fhir/context1.ts) or X16v2 (context1_v2.ts). */
+  harness?: Harness;
   id: string; model: string; patient: string; prompt: string;
   limits: { max_turns: number; max_tool_calls: number };
   stop_reason: string | null; error: string | null;
@@ -364,6 +367,9 @@ async function runAgent(payload: Payload, emit: (event: Event) => void, signal?:
   const shardInputs = (shard.inputs ?? { names: {}, cards: {} }) as Inputs;
   const withRecords = (resources: Map<string, Rec>): Inputs => ({ ...shardInputs, resources });
   const names = new Set(cfg.tools.map((t) => t.function.name));
+  const harness: Harness = isHarness(payload.harness) ? payload.harness : activeHarness();
+  // Lc: L's system prompt plus its one harness section (lc_system_prompt).
+  if (harness === 'Lc') system = lcSystemPrompt(system);
   const messages: ChatMessage[] = [{ role: 'system', content: system }, { role: 'user', content: prompt }];
   const trace: Trace = {
     id: crypto.randomUUID().replace(/-/g, '').slice(0, 12), model: host.modelName, patient: entry.id, prompt,
@@ -383,7 +389,6 @@ async function runAgent(payload: Payload, emit: (event: Event) => void, signal?:
   const guarded = (stop: GuardStop) => { trace.stop_reason = stop; trace.error = GUARD_TEXT[stop]; };
   const session = model.create_session();
   const started = performance.now();
-  const harness = payload.harness === 'X16' || payload.harness === 'X16v2' || payload.harness === 'L' ? payload.harness : activeHarness();
   trace.harness = harness;
 
   // Harness X16 (src/fhir/context1.ts), the harness LFM3 SFT v0.6.1-X16 was trained in. The
@@ -497,6 +502,10 @@ async function runAgent(payload: Payload, emit: (event: Event) => void, signal?:
     } else trace.stop_reason = ep.metrics.at('turn_cap_reached') ? 'max_turns' : trace.stop_reason;
   };
 
+  // Lc's request path: core.Episode with deferred exposure (CProfile sets it when compact is on).
+  const lc = harness === 'Lc'
+    ? new HarnessEpisode(store, () => Promise.reject(new Error('Lc calls the model itself')), { max_root_turns: maxTurns, deferred_exposure: true })
+    : null;
   try {
     if (harness === 'X16' || harness === 'X16v2') await runX16();
     else for (let turn = 1; turn <= maxTurns; turn++) {
@@ -552,7 +561,8 @@ async function runAgent(payload: Payload, emit: (event: Event) => void, signal?:
         const name = call.function.name;
         // FastMCP pre-parses a JSON-string body before validating (src/fhir/tools.ts).
         const args: Record<string, unknown> = preParse(call.parsed && typeof call.parsed === 'object' ? call.parsed : {});
-        let content: string, counted = 0;
+        // locked: the result's JSON text (L's tool text; Lc shows the model a compact search instead)
+        let content: string, counted = 0, locked: string | null = null;
         if (!names.has(name)) content = `error: unknown tool ${pyRepr(name)}`;
         else if (call.errors?.length) content = `Error executing tool ${name}: ${call.errors.join('; ')}`;
         else {
@@ -560,13 +570,26 @@ async function runAgent(payload: Payload, emit: (event: Event) => void, signal?:
           if (invalid) content = invalid;
           else {
             const events = store.events.length;
-            store.active_tool = 'fhir_request';
-            store.agent_tools.push('fhir_request');
-            store.round = turn;
+            if (!lc) {
+              store.active_tool = 'fhir_request';
+              store.agent_tools.push('fhir_request');
+              store.round = turn;
+            }
             // The sandbox lasts across questions; this run's budget is what it has left.
             if (!taskRow) store.max_calls = events + Math.max(maxToolCalls - trace.chart_requests, 0);
             try {
-              content = store.fhirRequestObject({
+              if (lc) {
+                // Lc (CProfile.call_result, compact=2): Episode.request with deferred exposure, then
+                // render_compact_v2; the exposed fields are exactly what the rendering showed in full.
+                lc.root_turn = turn;
+                const result = lc.request(args.method as string, args.path as string, truthy(args.body) ? args.body as Rec : null,
+                  truthy(args.if_match) ? args.if_match as string : '', truthy(args.if_none_exist) ? args.if_none_exist as string : '');
+                const rendered = renderCompactV2(result as unknown as Rec);
+                for (const [key, fields] of rendered.exposed) lc.exposeFields(key, fields, 'compact');
+                store.observe_response_terms(rendered.text);
+                content = rendered.text;
+                locked = pyDumps(result);
+              } else content = store.fhirRequestObject({
                 method: args.method as string, path: args.path as string, body: args.body,
                 if_match: args.if_match as string | undefined, if_none_exist: args.if_none_exist as string | undefined,
               });
@@ -581,7 +604,7 @@ async function runAgent(payload: Payload, emit: (event: Event) => void, signal?:
         trace.tool_calls += 1;
         trace.chart_requests += counted;
         messages.push({ role: 'tool', tool_call_id: call.id, content });
-        const [status, summary, refs] = T.describeResult(content);
+        const [status, summary, refs] = T.describeResult(locked ?? content);
         for (const key of new Set(refs)) (retrieved[key] ||= []).push(trace.tool_calls);
         const method = String(args.method || '').toUpperCase();
         const error = status === null || status === undefined || status >= 400;
@@ -590,7 +613,7 @@ async function runAgent(payload: Payload, emit: (event: Event) => void, signal?:
         const toolStep = {
           type: 'tool' as const, turn, call: trace.tool_calls, id: call.id, name, arguments: args, status, summary,
           plain: T.requestWords(args, patient, withRecords(before), error && write),
-          outcome: T.outcomeWords(method, status, content),
+          outcome: T.outcomeWords(method, status, locked ?? content),
           write, refs: refs.slice(0, 100), error, counted: !!counted,
           ms: Math.round((performance.now() - t1) * 10) / 10, chars: content.length,
           truncated: content.length > preview, content: content.slice(0, preview),

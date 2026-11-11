@@ -113,6 +113,7 @@ function MoreMenu() {
             <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Harness</DropdownMenuLabel>
             <DropdownMenuRadioGroup value={chosenHarness() ?? MODEL_HARNESS} onValueChange={(v) => { setChosenHarness(v === MODEL_HARNESS ? null : v as typeof MODEL_HARNESS); location.reload(); }}>
               <DropdownMenuRadioItem value="L">L (locked){MODEL_HARNESS === 'L' ? ' · model default' : ''}</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="Lc">Lc (compact search){MODEL_HARNESS === 'Lc' ? ' · model default' : ''}</DropdownMenuRadioItem>
               <DropdownMenuRadioItem value="X16">X16{MODEL_HARNESS === 'X16' ? ' · model default' : ''}</DropdownMenuRadioItem>
               <DropdownMenuRadioItem value="X16v2">X16v2{MODEL_HARNESS === 'X16v2' ? ' · model default' : ''}</DropdownMenuRadioItem>
             </DropdownMenuRadioGroup>
