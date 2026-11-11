@@ -32,6 +32,8 @@ export interface AppConfig {
 /** A benchmark question chosen for the composer: its index row plus the exact prompt. */
 export interface ChosenQuestion extends QuestionRow {
   prompt: string;
+  /** The answer contract, where the export keeps it apart from the prompt (natural v0.2.3.4+). */
+  answer_contract?: string | null;
 }
 
 export type Mode = 'ask' | 'benchmark';

@@ -1,0 +1,28 @@
+Requests below are written by clinical and front-desk staff in their own words.
+How this chart records what they ask for:
+- A message, note or alert to someone is a Communication: status completed, subject the
+  patient, recipient the person or organization addressed (a clinician by their
+  Practitioner record, a clinic by its Organization), about the record it concerns.
+- A follow-up, review or work item is a Task: status requested, intent order, for the
+  patient, focus the record it concerns.
+- The record a message or task concerns is the one the request names for it (link it to
+  the call, a task on that coverage, a copy of the report); otherwise, for work raised by
+  a call or message (a refill request, a reported discrepancy), that call or message;
+  otherwise the record the request is about (the order, result, appointment or dose it
+  identifies). An order or accession number names the order; a result is its observation;
+  a report is the report. Never a record merely linked to that one, such as an order's
+  report, a report's order or the order a message mentions.
+- A time is the one the request gives. When it gives only a day, use the time the chart
+  records for what is being logged (an acknowledgement, a call, a measurement); when the
+  chart has none, 12:00 UTC on that day.
+- Cancelling an order or referral sets its status to revoked; cancelling a task sets it to
+  cancelled; cancelling an appointment sets it to cancelled and its slot to free.
+- An entry recorded in error gets status entered-in-error; a deleted duplicate is deleted.
+- When the request asks to note or record a patient's decline of an appointment, cancel it as
+  above and also record the patient as declined on their participation in the appointment
+  and on their appointment response. A patient who only cancels, or declines only to
+  reschedule or rebook, gets no decline recorded: change only the appointment's status and
+  its slot.
+- Answer values: a status is the record's status code as charted; a test or concept may be
+  given by its code or its name; dates are YYYY-MM-DD unless a time is asked for; a record
+  the chart does not have is null as a whole, not an object of nulls.

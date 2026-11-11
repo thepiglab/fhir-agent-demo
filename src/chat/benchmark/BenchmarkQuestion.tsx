@@ -128,9 +128,10 @@ function Prompt({ q }: { q: ChosenQuestion }) {
   const [open, setOpen] = useState(false);
   const [long, setLong] = useState(false);
   const [format, setFormat] = useState(false);
+  // A v0.2.3 prompt carries its contract; a v0.2.3.4+ row keeps it apart (answer_contract).
   const cut = q.prompt.search(/\n\s*Reply with only JSON/);
   const asked = cut >= 0 ? q.prompt.slice(0, cut).trim() : q.prompt;
-  const contract = cut >= 0 ? q.prompt.slice(cut).trim() : '';
+  const contract = cut >= 0 ? q.prompt.slice(cut).trim() : q.answer_contract ?? '';
   useLayoutEffect(() => {
     const el = text.current;
     if (!el || open) return;

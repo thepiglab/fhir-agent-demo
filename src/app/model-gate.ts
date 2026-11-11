@@ -9,6 +9,7 @@ import type { ModelStatus } from './state.ts';
 import { announce } from './dom.ts';
 import { MODEL_FILE } from '../model/config.ts';
 import type { DeviceCheck } from '../chart/model-host.ts';
+import type { SavedModel } from '../model/model.ts';
 
 export type { DeviceCheck };
 type Host = typeof import('../chart/model-host.ts');
@@ -47,10 +48,51 @@ export const storedBytes = (): Promise<number> => getHost().then((h) => h.stored
 export async function removeModel(): Promise<number> {
   const h = await getHost();
   const freed = await h.removeModel();
+  void refreshVersions(h);
   announce(`Removed from this browser${freed ? `; ${fmtBytes(freed)} freed` : ''}.`);
   return freed;
 }
 export const deviceChecks = (): Promise<DeviceCheck[]> => getHost().then((h) => h.deviceChecks());
+
+// ---------- versions ----------
+export interface Versions {
+  /** This page's model version, or null when its file name has none. */
+  current: number | null;
+  /** An older version (or pin) saved in this browser, which this one replaces; null when none. */
+  older: SavedModel | null;
+  /** The newest version on Hugging Face, once asked; null when unknown. */
+  latest: number | null;
+}
+let versions: Versions = { current: null, older: null, latest: null };
+export const versionInfo = (): Versions => versions;
+let refreshing: Promise<void> | null = null;
+let again = false;
+/** Re-read what this browser has saved (after a load, a swap or a removal) and the newest on the Hub. */
+function refreshVersions(h: Host): Promise<void> {
+  if (refreshing) { again = true; return refreshing; }
+  refreshing = (async () => {
+    do {
+      again = false;
+      const [older, latest] = await Promise.all([h.replaced().catch(() => []), h.latest().catch(() => null)]);
+      const next: Versions = { current: h.version, older: older[0] ?? null, latest: latest?.version ?? null };
+      if (next.older?.url !== versions.older?.url || next.latest !== versions.latest || next.current !== versions.current) {
+        versions = next;
+        setModel(app.model);
+      }
+    } while (again);
+  })().finally(() => { refreshing = null; });
+  return refreshing;
+}
+/** Delete the older saved version (the one `versionInfo().older` names); returns bytes freed. */
+export async function removeOlder(): Promise<number> {
+  const h = await getHost();
+  const older = versions.older;
+  if (!older) return 0;
+  const freed = await h.removeSaved(older.url);
+  await refreshVersions(h);
+  announce(`Removed ${older.version !== null ? `v${older.version}` : 'the older model'} from this browser.`);
+  return freed;
+}
 
 // ---------- progress wording ----------
 export type Origin = ReturnType<Host['loadInfo']>;
@@ -90,7 +132,12 @@ export function initModel(): void {
     else if (s.state === 'error') announce('The model did not load.');
   });
   getHost().then((h) => {
-    h.subscribe((s) => { origin = h.loadInfo(); setModel(s); });
+    h.subscribe((s) => {
+      origin = h.loadInfo();
+      setModel(s);
+      if (s.state === 'ready' || s.state === 'absent') void refreshVersions(h);
+    });
+    void refreshVersions(h);
     void h.remoteBytes().then((r) => { if (r.ok && r.bytes) { knownSize = r.bytes; setModel(app.model); } });
     // Weights already in this browser (or named by ?model=) load at once, in seconds.
     void h.startModel().catch(() => { /* shown by the status */ });

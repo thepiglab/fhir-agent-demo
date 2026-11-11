@@ -3,8 +3,8 @@
 //
 // api.ts imports this module lazily (`await import('./model-host.ts')`) so the chart page and its
 // data do not wait for the WebGPU runtime; the model gate does the same.
-import { resolveSource, remoteSize, storedBytes, offload, load, pruneStale } from '../model/model.ts';
-import type { Model, SizeResult } from '../model/model.ts';
+import { resolveSource, remoteSize, storedBytes, offload, load, pruneStale, replacedBy, latestOnHub, hubRepo, modelVersion } from '../model/model.ts';
+import type { Model, SavedModel, SizeResult } from '../model/model.ts';
 import { MODEL_FACTS, MODEL_FILE } from '../model/config.ts';
 import type { ModelStatus } from '../app/state.ts';  // type only: keeps this module free of the app's state
 
@@ -89,6 +89,25 @@ export function remoteBytes(): Promise<SizeResult> {
 }
 export const storedNow = (): Promise<number> => storedBytes(source.url);
 
+// ---------- versions ----------
+/** This page's model version (the "-v<N>" in its file name), or null. */
+export const version: number | null = modelVersion(source.url);
+/** What this browser has saved that the page's model replaces: an older version or pin (biggest first). */
+export const replaced = async (): Promise<SavedModel[]> =>
+  overridden ? [] : (await replacedBy(source.url)).sort((a, b) => b.bytes - a.bytes);
+/** Delete a saved model this page's model replaces (never another site's or the current one). */
+export async function removeSaved(url: string): Promise<number> {
+  if (!(await replaced()).some((m) => m.url === url)) return 0;
+  return offload(url);
+}
+let hubPromise: Promise<{ version: number; file: string } | null> | null = null;
+/** The newest model version on Hugging Face (asked once), or null when unknown. */
+export function latest(): Promise<{ version: number; file: string } | null> {
+  const repo = hubRepo(source.url);
+  hubPromise ??= repo ? latestOnHub(repo) : Promise.resolve(null);
+  return hubPromise;
+}
+
 /**
  * Is the model usable here, and are its weights in this browser? Publishes `unsupported` or
  * `absent` (with the remote size once known); for `cached` it leaves the status alone, so a page
@@ -142,8 +161,8 @@ function begin(file: File | null): Promise<Model> {
   })();
   const tracked: Promise<Model> = run.then((model) => {
     current = model;
-    // Drop older cached copies of the same file under other URLs (e.g. an unpinned download).
-    if (!file && !overridden && /^https?:/.test(source.url)) pruneStale(source.url).catch(() => {});
+    // The swap: once this version is ready, delete what it replaces (an older version or pin).
+    if (!file && !overridden && /^https?:/.test(source.url)) pruneStale(source.url).then((gone) => { if (gone.length) publish(status); }).catch(() => {});
     publish({ state: 'ready', seconds: (performance.now() - t0) / 1000 });
     return model;
   }, (error: unknown) => {

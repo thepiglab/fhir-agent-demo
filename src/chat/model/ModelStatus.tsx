@@ -11,7 +11,7 @@ import { MODEL_FACTS } from '../../model/config.ts';
 import type { ModelStatus as Status } from '../../app/state.ts';
 import { app } from '../../app/state.ts';
 import {
-  deviceChecks, download, fmtBytes, host, loadOrigin, modelBytes, percent, progressView, removeModel, storedBytes,
+  deviceChecks, download, fmtBytes, host, loadOrigin, modelBytes, percent, progressView, removeModel, removeOlder, storedBytes, versionInfo,
 } from '../../app/model-gate.ts';
 import type { DeviceCheck } from '../../app/model-gate.ts';
 import { useModel } from './useModel.ts';
@@ -65,6 +65,8 @@ function ModelDetails({ status: s }: { status: Status }) {
   const [removing, setRemoving] = useState(false);
   const [checks, setChecks] = useState<DeviceCheck[] | null>(null);
   const [checksError, setChecksError] = useState<string | null>(null);
+  const [removingOlder, setRemovingOlder] = useState(false);
+  const { current, older, latest } = versionInfo();
 
   useEffect(() => { void storedBytes().then(setStored).catch(() => {}); }, [s.state]);
 
@@ -88,6 +90,16 @@ function ModelDetails({ status: s }: { status: Status }) {
         <p className="text-xs leading-relaxed text-muted-foreground">{MODEL_FACTS.result}</p>
       </div>
       <div className="border-t px-4 py-2">
+        {current !== null && (
+          <div className={ROW}>
+            <span className="text-muted-foreground">Version</span>
+            <span className="text-right">
+              v{current}
+              {latest !== null && latest === current && <span className="text-muted-foreground"> · latest</span>}
+              {latest !== null && latest > current && <span className="text-muted-foreground"> · v{latest} is on Hugging Face</span>}
+            </span>
+          </div>
+        )}
         <div className={ROW}><span className="text-muted-foreground">Size</span><span className="tabular-nums">{fmtBytes(modelBytes())}</span></div>
         <div className={ROW}><span className="text-muted-foreground">Status</span><span className="text-right">{where}</span></div>
         {src && (
@@ -99,6 +111,23 @@ function ModelDetails({ status: s }: { status: Status }) {
           </div>
         )}
       </div>
+
+      {latest !== null && current !== null && latest > current && (
+        <p className="border-t px-4 py-3 text-xs text-muted-foreground">
+          A newer model (v{latest}) is on Hugging Face. This site switches to it once it is set up and tested for it.
+        </p>
+      )}
+      {older && (
+        <div className="flex items-center gap-2 border-t px-4 py-2.5 text-xs">
+          <span className="mr-auto text-muted-foreground">
+            {older.version !== null ? `v${older.version}` : 'An older version'} is also saved here ({fmtBytes(older.bytes)}){s.state === 'ready' ? '' : `; it is removed once v${current ?? ''} is ready`}.
+          </span>
+          <Button size="xs" variant="ghost" disabled={busy || removingOlder} className="text-muted-foreground"
+            onClick={() => { setRemovingOlder(true); void removeOlder().finally(() => setRemovingOlder(false)); }}>
+            <Trash2 />Remove
+          </Button>
+        </div>
+      )}
 
       {s.state === 'loading' && (() => {
         const v = progressView(s);
@@ -116,7 +145,7 @@ function ModelDetails({ status: s }: { status: Status }) {
         <div className="flex flex-wrap items-center gap-2 border-t px-4 py-3">
           {(s.state === 'absent' || s.state === 'error') && (
             <Button size="sm" onClick={download}>
-              {s.state === 'error' ? <><RotateCcw />Try again</> : <><Download />Download</>}
+              {s.state === 'error' ? <><RotateCcw />Try again</> : <><Download />{older && current !== null ? `Update to v${current}` : 'Download'}</>}
             </Button>
           )}
           <LocalFile>

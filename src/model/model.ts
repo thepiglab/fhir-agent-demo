@@ -7,6 +7,9 @@ import './raf-shim.ts';
 import { Lfm3ForCausalLM } from '../../vendor/lfm3-webgpu-pi/Lfm3ForCausalLM.js';
 import type { LoadOptions, LoadProgress } from '../../vendor/lfm3-webgpu-pi/Lfm3ForCausalLM.js';
 import { MODEL, contextTokens } from './config.ts';
+import { hubRepo, modelVersion } from './versions.ts';
+
+export { hubRepo, modelVersion };
 
 const CACHE_DB = 'gguf-cache-v1';
 
@@ -108,21 +111,63 @@ export async function offload(url: string): Promise<number> {
   return Math.max(0, before - after);
 }
 
-// Delete cached copies of the same file under other URLs (an older pin, or the unpinned "main"
-// URL that served the previous model), so a model update does not leave 1 GB behind.
-export async function pruneStale(url: string): Promise<string[]> {
-  const name = url.split('/').pop();
+/** A model whose weights are (partly) stored in this browser. */
+export interface SavedModel { url: string; file: string; version: number | null; bytes: number }
+
+/** Every model stored in this browser, with its bytes (one pass over the cache's keys). */
+export async function savedModels(): Promise<SavedModel[]> {
   const db = await openCache();
-  if (!db || !db.objectStoreNames.contains('meta')) { db?.close(); return []; }
-  const keys = await new Promise<string[]>((resolve) => {
-    const req = db.transaction('meta').objectStore('meta').getAllKeys();
-    req.onsuccess = () => resolve(req.result.filter((k): k is string => typeof k === 'string'));
-    req.onerror = () => resolve([]);
+  if (!db || !db.objectStoreNames.contains('chunks')) { db?.close(); return []; }
+  const bytes = new Map<string, number>();
+  await new Promise<void>((resolve) => {
+    const req = db.transaction('chunks').objectStore('chunks').openKeyCursor();
+    req.onsuccess = () => {
+      const cursor = req.result;
+      if (!cursor) { resolve(); return; }
+      const [url, begin, end] = cursor.key as [unknown, unknown, unknown];
+      if (typeof url === 'string' && typeof begin === 'number' && typeof end === 'number') bytes.set(url, (bytes.get(url) ?? 0) + end - begin);
+      cursor.continue();
+    };
+    req.onerror = () => resolve();
   });
   db.close();
-  const stale = keys.filter((k) => k !== url && k.split('/').pop() === name);
+  return [...bytes].filter(([, n]) => n > 0).map(([url, n]) => {
+    const file = url.split('/').pop() ?? url;
+    return { url, file, version: modelVersion(file), bytes: n };
+  });
+}
+
+/** Saved models that `url` replaces: other files or revisions from the same Hugging Face repo. */
+export async function replacedBy(url: string): Promise<SavedModel[]> {
+  const repo = hubRepo(url);
+  const name = url.split('/').pop();
+  return (await savedModels()).filter((m) => m.url !== url && (repo ? hubRepo(m.url) === repo : m.file === name));
+}
+
+// Delete the models `url` replaces (an older version, an older pin, or the unpinned "main" URL),
+// so an update does not leave 1 GB behind. Returns the URLs removed.
+export async function pruneStale(url: string): Promise<string[]> {
+  const stale = (await replacedBy(url)).map((m) => m.url);
   for (const k of stale) await offload(k);
   return stale;
+}
+
+/** The newest model file in a Hugging Face repo (highest "-v<N>" .gguf on its main branch), or null. */
+export async function latestOnHub(repo: string): Promise<{ version: number; file: string } | null> {
+  try {
+    const res = await fetch(`https://huggingface.co/api/models/${repo}`);
+    if (!res.ok) return null;
+    const info = await res.json() as { siblings?: { rfilename?: string }[] };
+    let best: { version: number; file: string } | null = null;
+    for (const s of info.siblings ?? []) {
+      const file = s.rfilename ?? '';
+      const version = /\.gguf$/i.test(file) ? modelVersion(file) : null;
+      if (version !== null && (!best || version > best.version)) best = { version, file };
+    }
+    return best;
+  } catch {
+    return null;
+  }
 }
 
 // A local GGUF behind a fetch() that answers HEAD and byte ranges from File.slice(), so

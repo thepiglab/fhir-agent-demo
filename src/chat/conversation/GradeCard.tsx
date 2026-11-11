@@ -7,6 +7,7 @@ import { CheckIcon, ChevronRightIcon, XIcon } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
 import { pyDumps } from '../../fhir/pyjson.ts';
+import { fieldMatches } from '../../fhir/scoring.ts';
 import type { BenchmarkResult } from '../../chart/api.ts';
 import { openRecord } from './hooks.ts';
 import type { RunTrace } from './types.ts';
@@ -151,8 +152,8 @@ export function GradeCard({ trace }: { trace: RunTrace }) {
   const fieldCount = fields ? new Set([...fields, ...Object.keys(gotObj)]).size : 0;
   const extra = isObj(got) && fields ? Object.keys(gotObj).filter((k) => !fields.includes(k)) : [];
   const answerLines = fields
-    ? fields.map((k) => ({ field: k, want: show((goldAnswer as Obj)[k]), have: show(gotObj[k]) }))
-    : [{ field: 'answer', want: show(goldAnswer), have: show(got) }];
+    ? fields.map((k) => ({ field: k, want: show((goldAnswer as Obj)[k]), have: show(gotObj[k]), good: fieldMatches((goldAnswer as Obj)[k], gotObj[k], b.task?.prompt ?? '') }))
+    : [{ field: 'answer', want: show(goldAnswer), have: show(got), good: fieldMatches(goldAnswer, got, b.task?.prompt ?? '') }];
 
   // Evidence: keyed tasks need the records cited (and retrieved); natural-track tasks
   // (effect_graded) need them read, and each citation must be a retrieved record of this
@@ -209,7 +210,7 @@ export function GradeCard({ trace }: { trace: RunTrace }) {
                   <tbody className="divide-y">
                     {answerLines.map((l) => (
                       <tr key={l.field}>
-                        <td className="py-1.5"><Mark good={l.want === l.have} /></td>
+                        <td className="py-1.5"><Mark good={l.good} /></td>
                         <th scope="row" className="py-1.5 pr-3 text-left font-medium">{l.field}</th>
                         <td className="break-all py-1.5 pr-3 font-mono">{l.want}</td>
                         <td className="break-all py-1.5 font-mono">{l.have}</td>

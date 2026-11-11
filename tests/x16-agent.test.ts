@@ -83,6 +83,9 @@ describe.skipIf(!ready)('Chart assistant in harness X16', () => {
     const store = new Map<string, string>([['fhir-demo-dev', 'true']]);
     vi.stubGlobal('localStorage', { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v), removeItem: (k: string) => void store.delete(k) });
     chooseCohort('natural-v0.2.2');
+    // The recorded runs are SFT v0.6.1-X16's, in its own prompt layout (the contract in the user turn),
+    // whatever layout MODEL_PROMPT_LAYOUT gives the shipped model.
+    vi.stubGlobal('location', new URL(BASE + 'chart.html?layout=v0.2.2'));
   });
 
   it.each([

@@ -230,15 +230,31 @@ export const familyLabel = (family: string): string => {
 
 const promptCache = new Map<string, Promise<Map<string, string>>>();
 /** The exact prompts of one patient's questions (id -> prompt). */
+type BenchTask = { id: string | null; prompt?: string; answer_contract?: string | null };
+const taskCache = new Map<string, Promise<BenchTask[]>>();
+function loadTasks(patientId: string): Promise<BenchTask[]> {
+  let entry = taskCache.get(patientId);
+  if (!entry) {
+    entry = api<{ tasks: BenchTask[] }>('/api/benchmark', { patient: patientId }).then(({ tasks }) => tasks);
+    entry.catch(() => taskCache.delete(patientId));
+    taskCache.set(patientId, entry);
+  }
+  return entry;
+}
 export function loadPrompts(patientId: string): Promise<Map<string, string>> {
   let entry = promptCache.get(patientId);
   if (!entry) {
-    entry = api<{ tasks: { id: string | null; prompt?: string }[] }>('/api/benchmark', { patient: patientId })
-      .then(({ tasks }) => new Map(tasks.filter((t) => t.id && typeof t.prompt === 'string').map((t) => [t.id as string, t.prompt as string])));
+    entry = loadTasks(patientId)
+      .then((tasks) => new Map(tasks.filter((t) => t.id && typeof t.prompt === 'string').map((t) => [t.id as string, t.prompt as string])));
     entry.catch(() => promptCache.delete(patientId));
     promptCache.set(patientId, entry);
   }
   return entry;
+}
+/** A v0.2.3.4+ row's answer contract, kept apart from its prompt (null for older exports). */
+async function loadContract(patientId: string, id: string): Promise<string | null> {
+  const task = (await loadTasks(patientId)).find((t) => t.id === id);
+  return typeof task?.answer_contract === 'string' ? task.answer_contract : null;
 }
 /** Every patient's prompts, for searching the question text (loaded on the first search). */
 export async function loadAllPrompts(onEach: (patient: string, prompts: Map<string, string>) => void): Promise<void> {
@@ -248,7 +264,7 @@ export async function loadAllPrompts(onEach: (patient: string, prompts: Map<stri
 async function chosen(row: QuestionRow): Promise<ChosenQuestion> {
   const prompt = (await loadPrompts(row.patient)).get(row.id);
   if (prompt === undefined) throw new Error('This question’s prompt is missing from the export');
-  return { ...row, prompt };
+  return { ...row, prompt, answer_contract: await loadContract(row.patient, row.id) };
 }
 
 export const patientById = (id: string): ChartPatient | undefined => app.patients.find((p) => p.id === id);

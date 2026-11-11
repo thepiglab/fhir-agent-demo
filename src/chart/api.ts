@@ -12,8 +12,13 @@
 //     and it keeps its changes until /api/reset.
 import { FhirStore, PARAMS, episodeStore, patientRef, pyDumps, ref } from '../fhir/store.ts';
 import type { AuditEntry } from '../fhir/store.ts';
-import { absenceChecked, effectGraded, evaluateTraining } from '../fhir/scoring.ts';
+import { ASKS_FOR_ORDER, absenceChecked, effectGraded, evaluateTraining, gradeListsOrderFree } from '../fhir/scoring.ts';
 import type { TrainingOptions } from '../fhir/scoring.ts';
+import { askSystem, taskMessages } from './prompt.ts';
+// The v0.2.3.4 charting conventions (better-questions' lfm3-prompt-v0235 package), for exports made
+// before config.json carried them.
+import CONVENTIONS_V0234 from './charting_conventions_v0234.txt?raw';
+import type { LayoutTask } from './prompt.ts';
 import type { Rec } from '../fhir/pyrt.ts';
 import type { Tool, ChatMessage, GenerateOptions } from '../../vendor/lfm3-webgpu-pi/Lfm3ForCausalLM.js';
 import type { ChartPatient } from '../types.ts';
@@ -25,7 +30,7 @@ import { Context1Profile, Episode as HarnessEpisode } from '../fhir/context1.ts'
 import { Context1V2Profile } from '../fhir/context1_v2.ts';
 import { loadTokenizer } from '../fhir/tokenizer.ts';
 import type { ModelReply } from '../fhir/context1.ts';
-import { LONG_CONTEXT_TOKENS, MODEL_REPETITION_PENALTY, activeHarness, contextTokens } from '../model/config.ts';
+import { LONG_CONTEXT_TOKENS, MODEL_SAMPLING, activeHarness, activePromptLayout, contextTokens } from '../model/config.ts';
 import type { Inputs, Trace as TraceBase } from './trace.ts';
 import { checkReply, cleanReply, expandCitations, replyEvidence, replyMessages } from './reply.ts';
 import { GUARD_TEXT, REPLY_CAP, THINKING_BUDGET, thinkingGuard } from './guard.ts';
@@ -44,6 +49,8 @@ interface ChartConfig {
   preview_chars?: number;
   contracts: Record<string, string>;
   requests?: Record<string, string[]>;
+  /** The charting conventions natural v0.2.3.4+ puts in the system prompt (src/chart/prompt.ts). */
+  charting_conventions?: string | null;
   [key: string]: unknown;
 }
 /** A patient of a cohort's patients.json: the ChartIndex entry and the shard that holds the chart. */
@@ -146,7 +153,7 @@ async function apiConfig(): Promise<Record<string, unknown>> {
   const { modelName } = await import('./model-host.ts');
   return {
     ...(await config()), model: modelName, base_url: 'this browser (WebGPU)', browser_model: true,
-    sampling: { ...SAMPLING }, max_tokens: 2048, data_dir: `${cohort.label} · ${cohort.tasks.toLocaleString()} tasks`,
+    sampling: sampling(), max_tokens: 2048, data_dir: `${cohort.label} · ${cohort.tasks.toLocaleString()} tasks`,
   };
 }
 
@@ -212,8 +219,9 @@ async function consoleRequest(payload: Payload): Promise<unknown> {
 
 // --- asking ----------------------------------------------------------------------------------------
 
-/** demo/app.py's user_prompt: the request, the context line, and optionally the family's contract. */
-function userPrompt(cfg: ChartConfig, patient: ChartPatient, question: string, family: string | null): string {
+/** demo/app.py's user_prompt: the request, the context line, and optionally the family's contract
+ *  (left out when the layout puts the contract in the system prompt instead). */
+function userPrompt(cfg: ChartConfig, patient: ChartPatient, question: string, family: string | null, contractInUser = true): string {
   const context = patient.mrn
     ? `Context: patient MRN ${patient.mrn} (identifier system ${cfg.mrn_system}); as-of date ${patient.as_of}, treated as today.`
     : `Context: known patient ${patient.ref}; as-of date ${patient.as_of}, treated as today.`;
@@ -221,7 +229,7 @@ function userPrompt(cfg: ChartConfig, patient: ChartPatient, question: string, f
   if (family) {
     const contract = cfg.contracts[family];
     if (!contract) throw new HttpError(400, `Unknown question family: ${JSON.stringify(family)}`);
-    parts.push(contract);
+    if (contractInUser) parts.push(contract);
   }
   return parts.join('\n');
 }
@@ -332,7 +340,17 @@ async function runAgent(payload: Payload, emit: (event: Event) => void, signal?:
   const family = payload.family || null;
   // A benchmark task's exact prompt is sent as is (it states its own context and contract).
   const taskRow = await findTask(cohort, entry.id, question);
-  const prompt = taskRow ? taskRow.prompt : userPrompt(cfg, patient, question, family);
+  // The model's prompt layout (src/chart/prompt.ts): where the answer contract goes, and whether
+  // the v0.2.3.4 charting conventions precede it in the system prompt.
+  const layout = activePromptLayout();
+  const conventions = cfg.charting_conventions ?? CONVENTIONS_V0234;
+  let system: string, prompt: string;
+  if (taskRow) ({ system, user: prompt } = taskMessages(layout, cfg.system_prompt, taskRow as unknown as LayoutTask, conventions));
+  else {
+    const inSystem = layout === 'v0.2.3.4' && !!conventions;
+    prompt = userPrompt(cfg, patient, question, family, !inSystem);
+    system = askSystem(layout, cfg.system_prompt, conventions, inSystem && family ? cfg.contracts[family] ?? null : null);
+  }
   const maxTurns = payload.max_turns || cfg.max_turns || 20;
   const maxToolCalls = taskRow ? BENCHMARK_CALLS : payload.max_tool_calls || cfg.max_tool_calls || 40;
   const host = await import('./model-host.ts');
@@ -346,7 +364,7 @@ async function runAgent(payload: Payload, emit: (event: Event) => void, signal?:
   const shardInputs = (shard.inputs ?? { names: {}, cards: {} }) as Inputs;
   const withRecords = (resources: Map<string, Rec>): Inputs => ({ ...shardInputs, resources });
   const names = new Set(cfg.tools.map((t) => t.function.name));
-  const messages: ChatMessage[] = [{ role: 'system', content: cfg.system_prompt }, { role: 'user', content: prompt }];
+  const messages: ChatMessage[] = [{ role: 'system', content: system }, { role: 'user', content: prompt }];
   const trace: Trace = {
     id: crypto.randomUUID().replace(/-/g, '').slice(0, 12), model: host.modelName, patient: entry.id, prompt,
     limits: { max_turns: maxTurns, max_tool_calls: maxToolCalls }, steps: [], final: null, stop_reason: null, error: null,
@@ -357,11 +375,9 @@ async function runAgent(payload: Payload, emit: (event: Event) => void, signal?:
   emit({ event: 'start', trace: { id: trace.id, model: trace.model, patient: trace.patient, prompt, limits: trace.limits } });
   const options: GenerateOptions = {
     tools: cfg.tools, enable_thinking: true, max_new_tokens: replyCap(),
-    // The RL eval preset: temperature 0.1, top_k 50 and a seed, which the runtime ignores for our
-    // GGUFs (it decodes greedily, so a question gives the same run each time), and the model's own
-    // repetition penalty (MODEL_REPETITION_PENALTY; 1 = off).
-    temperature: Number(payload.temperature ?? SAMPLING.temperature), top_k: SAMPLING.top_k, seed: SAMPLING.seed,
-    repetition_penalty: repetitionPenalty(),
+    // The model's eval preset (MODEL_SAMPLING: e.g. T 0.1, top_k 50, seed 42 and its repetition
+    // penalty), sampled on the GPU. A fixed seed gives the same run for the same question.
+    ...sampling(payload.temperature),
   };
   /** Stops the run cleanly when a turn's thinking runs past its budget or loops. */
   const guarded = (stop: GuardStop) => { trace.stop_reason = stop; trace.error = GUARD_TEXT[stop]; };
@@ -440,7 +456,7 @@ async function runAgent(payload: Payload, emit: (event: Event) => void, signal?:
     const savedMax = store.max_calls;
     if (!taskRow) store.max_calls = store.events.length + maxToolCalls;
     try {
-      await profile.run(ep, cfg.system_prompt, prompt, {
+      await profile.run(ep, system, prompt, {
         onTool: (call, res) => {
           const t1 = performance.now();
           let args: Record<string, unknown> = {};
@@ -610,10 +626,11 @@ async function runAgent(payload: Payload, emit: (event: Event) => void, signal?:
     trace.task = { id: taskRow.id, family: taskRow.family, suite: cohort.id, gold: evidence, gold_answer: taskRow.gold.answer, skipped: null };
     trace.benchmark = grade(cohort, taskRow, store, lastReply);
   }
-  // The reply turn (src/chart/reply.ts) is for free-response answers that cite records the agent
-  // read; a benchmark question is scored on its structured answer and gets none.
+  // The reply turn (src/chart/reply.ts): a few checked sentences over the structured answer and the
+  // records the agent read. Benchmark questions get one too; it is written after grading and never
+  // scored (the benchmark scores the structured answer).
   const final = trace.final;
-  if (!taskRow && final && final.parsed && trace.stop_reason === 'final_answer' && payload.reply === true) {
+  if (final && final.parsed && trace.stop_reason === 'final_answer' && payload.reply === true) {
     const read = new Set(Object.keys(retrieved));
     const evidence = replyEvidence(final.evidence, read, store.resources as Map<string, Rec>);
     if (evidence.length) {
@@ -626,7 +643,9 @@ async function runAgent(payload: Payload, emit: (event: Event) => void, signal?:
         ...made.map((e) => ({ method: e.method, ref: e.ref, status: String({ POST: 201, DELETE: 204 }[e.method] ?? 200) })),
         ...refused,
       ];
-      trace.reply_input = { question, answer: final.answer, evidence, writes };
+      // The request as asked, without the benchmark's answer contract ("Reply with only JSON: …").
+      const asked = question.split(/\n\s*Reply with only JSON/)[0]!.trim();
+      trace.reply_input = { question: asked, answer: final.answer, evidence, writes };
     }
   }
   return trace;
@@ -635,14 +654,16 @@ async function runAgent(payload: Payload, emit: (event: Event) => void, signal?:
 /** Reply turn options: no tools, no thinking, a few sentences. */
 const REPLY_OPTIONS: GenerateOptions = { enable_thinking: false, max_new_tokens: 320, temperature: 0, top_k: 50, seed: 42 };
 
-/** The RL evals' sampling preset (less its repetition penalty, see src/chart/guard.ts). Note the
- * runtime decodes greedily for these GGUFs, so temperature, top_k and seed are not applied. */
-export const SAMPLING = { temperature: 0.1, top_k: 50, seed: 42 } as const;
-
-/** MODEL_REPETITION_PENALTY (src/model/config.ts; 1 = off), or ?rep_penalty= in the dev server only (measurement; 1 turns it off). */
-function repetitionPenalty(): number {
-  const wanted = import.meta.env?.DEV && globalThis.location ? Number(new URLSearchParams(globalThis.location.search).get('rep_penalty')) : 0;
-  return Number.isFinite(wanted) && wanted > 0 ? wanted : MODEL_REPETITION_PENALTY;
+/** The agent's sampling: MODEL_SAMPLING, with a request's own temperature (0 = greedy) and, in the
+ * dev server only (measurement), ?temperature= and ?rep_penalty= from the page URL. */
+export function sampling(temperature?: unknown): GenerateOptions {
+  const q = import.meta.env?.DEV && globalThis.location ? new URLSearchParams(globalThis.location.search) : null;
+  const rep = Number(q?.get('rep_penalty') ?? NaN), temp = Number(temperature ?? q?.get('temperature') ?? NaN);
+  return {
+    ...MODEL_SAMPLING,
+    ...(Number.isFinite(temp) && temp >= 0 ? { temperature: temp } : {}),
+    ...(Number.isFinite(rep) && rep > 0 ? { repetition_penalty: rep } : {}),
+  };
 }
 
 /** One tool-free model call that writes the clinician's reply, then the checks that gate it. */
@@ -707,7 +728,10 @@ export function grade(cohort: Cohort, task: TaskRow, store: FhirStore, finalText
     task: { track: task.track, persona: task.persona, style: task.style, premise: task.premise, prompt: task.prompt },
   };
   try {
-    result.metrics = evaluateTraining(task, store, finalText, EVALUATION);
+    // Lists in the answer are order-free unless the question asks for an order (as the v0.6.2 grading).
+    gradeListsOrderFree(!ASKS_FOR_ORDER.test(String(task.prompt ?? '').split('\n')[0]));
+    try { result.metrics = evaluateTraining(task, store, finalText, EVALUATION); }
+    finally { gradeListsOrderFree(false); }
     const scope = (task as { absence_scope?: unknown }).absence_scope;
     result.absence = scope && typeof scope === 'object'
       ? { scope: scope as Record<string, unknown>, checked: absenceChecked(task, store, EVALUATION.interface, EVALUATION.scoring_version) }
@@ -751,6 +775,7 @@ async function benchmarkTasks(patientId: unknown): Promise<unknown> {
     tasks: file.tasks.map((t) => ({
       id: t.id, family: t.family, ...t._display, track: t.track ?? null, persona: t.persona ?? null, style: t.style ?? null,
       premise: t.premise ?? null, crud: t.crud ?? null, prompt: t.prompt, question: t.prompt,
+      answer_contract: typeof t.answer_contract === 'string' ? t.answer_contract : null,
     })),
   };
 }

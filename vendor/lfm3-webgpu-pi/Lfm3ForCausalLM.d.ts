@@ -1,6 +1,6 @@
 // Types for the parts of the vendored webml-community LFM3 WebGPU runtime this app calls.
-// Written for fhir-env from the runtime's own code. The runtime itself is patched in one respect:
-// `repetition_penalty` (see ./PATCHES.md).
+// Written for fhir-env from the runtime's own code. The runtime is patched to sample on the GPU with the
+// options below (see ./PATCHES.md).
 
 export interface LoadProgress {
   status: 'init' | 'tokenizer' | 'weights' | 'ready' | string;
@@ -45,19 +45,33 @@ export interface GenerateOptions {
   tools?: Tool[];
   enable_thinking?: boolean;
   max_new_tokens?: number;
+  /** Stop tokens (default: the model's EOS ids). Up to 4 of them are also masked by min_tokens. */
+  eos_token_id?: number | number[];
+  /** Stop strings, checked on the decoded text. */
+  stop_strings?: string[];
+  // Sampling, on the GPU (vendor/lfm3-webgpu-pi/PATCHES.md), with vLLM's semantics and order:
+  // logit_bias, min_tokens -> repetition, frequency, presence -> temperature -> min_p -> top_k -> top_p -> draw.
+  // Passing temperature, top_k, top_p or min_p turns sampling on; temperature 0 or top_k 1 is greedy.
+  /** 0 = greedy (argmax of the penalized logits). Default 1 once sampling is on. */
   temperature?: number;
-  /** 1 to 64. */
+  /** 1 to 64. Unset, 0 or -1: all 64 candidates (vLLM: the whole vocabulary; see PATCHES.md for the bound). */
   top_k?: number;
+  /** (0, 1]. Default 1 (off). */
   top_p?: number;
+  /** [0, 1], relative to the most likely token. Default 0 (off). */
   min_p?: number;
+  /** Per-request seed: the same seed gives the same tokens. Default: random. */
   seed?: number;
-  /**
-   * Repetition penalty with Hugging Face / vLLM / llama.cpp semantics, applied to every token in the
-   * prompt and in the reply so far: a seen token's logit is divided by the penalty when positive and
-   * multiplied by it when not. 1 (the default) is off. Works in the greedy decode path, on models
-   * whose lm_head is the single-stage q6_k head (our Q4_K_M GGUFs); other heads throw.
-   */
+  /** Multiplicative, over prompt and output tokens: a seen token's logit is divided by it when positive, multiplied when not. 1 = off. */
   repetition_penalty?: number;
+  /** [-2, 2]. Subtracted once from every token already in this reply. 0 = off. */
+  presence_penalty?: number;
+  /** [-2, 2]. Subtracted per occurrence in this reply. 0 = off. */
+  frequency_penalty?: number;
+  /** Token id -> bias added to its logit (clamped to [-100, 100]). */
+  logit_bias?: Record<number, number>;
+  /** The stop tokens (eos_token_id) cannot be generated before this many new tokens. */
+  min_tokens?: number;
   signal?: AbortSignal;
 }
 

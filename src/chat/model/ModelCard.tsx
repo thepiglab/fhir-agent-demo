@@ -2,10 +2,10 @@
 // it from this browser, use a local file, or see why it cannot run. CONVERSATION renders it.
 import { useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
-import { Download, RotateCcw, Upload } from 'lucide-react';
+import { Download, RefreshCw, RotateCcw, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { download, fmtSize, loadOrigin, lowMemory, modelBytes, preferLocal, progressView } from '../../app/model-gate.ts';
+import { download, fmtSize, loadOrigin, lowMemory, modelBytes, preferLocal, progressView, versionInfo } from '../../app/model-gate.ts';
 import { useModel } from './useModel.ts';
 
 import { LocalFile, ProgressBar } from './parts.tsx';
@@ -34,26 +34,34 @@ export function ModelCard({ className }: { className?: string }) {
       body = 'Checking whether it is already in this browser…';
       content = <ProgressBar percent={null} label="Checking" />;
       break;
-    case 'absent':
-      title = 'Download the model to start';
-      body = `${size}, once. It stays in this browser; every question runs here, privately.`;
+    case 'absent': {
+      // An older version is saved here: offer the swap (the old one is deleted once the new one is ready).
+      const { current, older } = versionInfo();
+      const name = (v: number | null) => (v === null ? 'the new model' : `v${v}`);
+      const olderName = older?.version != null ? `v${older.version}` : 'an older version';
+      title = older ? `Update the model to ${name(current)}` : 'Download the model to start';
+      body = older
+        ? `This browser has ${olderName} of the model saved. ${name(current)} is a ${size} download; ${olderName} (${fmtSize(older.bytes)}) is removed once ${name(current)} is ready.`
+        : `${size}, once. It stays in this browser; every question runs here, privately.`;
+      const action = older ? `Update to ${name(current)}` : 'Download';
       if (lowMemory() !== null) body += ` This device reports ${lowMemory()} GB of memory; the model needs about 3 GB free, so it may not load.`;
       content = (
         <LocalFile>
           {(open) => preferLocal ? (
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
               <Button onClick={open}><Upload />Choose a .gguf file</Button>
-              <button type="button" className={linkClass} onClick={download}>Download it instead</button>
+              <button type="button" className={linkClass} onClick={download}>{older ? `${action} instead` : 'Download it instead'}</button>
             </div>
           ) : (
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-              <Button onClick={download}><Download />Download</Button>
+              <Button onClick={download}>{older ? <RefreshCw /> : <Download />}{action}</Button>
               <button type="button" className={linkClass} onClick={open}>Use a local file</button>
             </div>
           )}
         </LocalFile>
       );
       break;
+    }
     case 'loading': {
       const v = progressView(s);
       const from = loadOrigin().from;

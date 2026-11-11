@@ -240,6 +240,38 @@ export function subset(expected: unknown, actual: unknown): boolean {
   return sameType(expected, actual) && pyEq(expected, actual);
 }
 
+/**
+ * Lists in answers are compared in order (the v0.6 scorer this file ports) unless order-free
+ * grading is on: then a list matches when each gold item pairs with a distinct given item, in any
+ * order, as v0.6.2's answer spec grades natural answers ("Lists are order-free unless the request
+ * asks for an order"). The demo turns it on per question with gradeListsOrderFree(); the Python
+ * parity tests leave it off.
+ */
+let orderFree = false;
+/** Order-free list grading on (the request does not ask for an order) or off (v0.6 behaviour). */
+export function gradeListsOrderFree(on: boolean): void { orderFree = on; }
+/** A request that asks for an ordered list: a date order only ("oldest first", "in chronological
+ *  order"). Alphabetical order and a bare "sorted" are not clinical asks and do not count. */
+export const ASKS_FOR_ORDER = /\b(?:in (?:date|chronological) order|oldest first|newest first|oldest to newest|newest to oldest)\b/i;  // = v0.2.3.5's answer_spec.ORDERED
+
+function listsMatch(expected: unknown[], actual: unknown[]): boolean {
+  if (expected.length !== actual.length) return false;
+  if (!orderFree) return expected.every((e, i) => answerEqual(e, actual[i]));
+  const used = new Set<number>();
+  return expected.every((e) => {
+    const i = actual.findIndex((a, j) => !used.has(j) && answerEqual(e, a));
+    if (i < 0) return false;
+    used.add(i);
+    return true;
+  });
+}
+
+/** One answer field as the demo grades it: lists order-free unless the request asks for an order. */
+export function fieldMatches(expected: unknown, actual: unknown, prompt: string): boolean {
+  gradeListsOrderFree(!ASKS_FOR_ORDER.test(prompt.split('\n')[0] ?? ''));
+  try { return answerEqual(expected, actual); } finally { gradeListsOrderFree(false); }
+}
+
 export function answerEqual(expected: unknown, actual: unknown): boolean {
   if (isDict(expected)) {
     return isDict(actual)
@@ -247,7 +279,7 @@ export function answerEqual(expected: unknown, actual: unknown): boolean {
       && Object.entries(expected).every(([k, v]) => answerEqual(v, actual[k]));
   }
   if (Array.isArray(expected)) {
-    return Array.isArray(actual) && expected.length === actual.length && expected.every((e, i) => answerEqual(e, actual[i]));
+    return Array.isArray(actual) && listsMatch(expected, actual);
   }
   if (typeof expected === 'boolean' || typeof actual === 'boolean') {
     return sameType(expected, actual) && pyEq(expected, actual);

@@ -5,24 +5,48 @@
 // as "models/file.gguf" loads from this site instead: the dev and preview servers serve the
 // git-ignored models/ folder (vite.config.ts); a deployed site has no such folder.
 // The page's ?model=<path or owner/repo/file> overrides it, e.g. for local testing.
-// Pinned to the Hugging Face commit that holds SFT v0.6.1 (sha256 below), so a browser that
-// cached the previous model (SFT v0.5.1, same file name) downloads the new one.
-export const MODEL = 'mkieffer/LFM3-FHIR-demo-v1@8ca16a0671e2e5458531b5d7295081acf5811e2d/LFM3-FHIR-demo-v1-Q4_K_M.gguf';
+// SFT v0.7 L (LFM3-FHIR-demo-v2-Q4_K_M.gguf, sha256 below), uploaded next to v1's file in the same
+// repo and pinned to that upload's Hugging Face commit. The "-v<N>" in the file name is the model's
+// version: the page compares it with what this browser has saved and with the newest file in the
+// repo (src/model/model.ts, savedModels and latestOnHub). v0.7 tied SFT v0.6.1 L on the 36 held-out
+// questions at each model's own prompt layout and eval sampling, 14/36 each, and is far ahead on
+// the v0.2.3.x prompts the demo now uses (docs/research/webgpu-sampler.md in fhir-env).
+import { isPromptLayout } from '../chart/prompt.ts';
+import type { PromptLayout } from '../chart/prompt.ts';
+
+export const MODEL = 'mkieffer/LFM3-FHIR-demo-v1@d6c2dc59092969aede3650167fb899632e719342/LFM3-FHIR-demo-v2-Q4_K_M.gguf';
 /** The pinned file, as Hugging Face reports it (X-Linked-ETag, X-Linked-Size). */
-export const MODEL_FILE = { sha256: '8ef448bc1e8cd6bc456c02294ee99eb436e54c6a43d9684a629937c248fc9cf3', bytes: 1_099_627_360 };
-/** Repetition penalty for the model above (1 = off; HF/vLLM semantics, applied on the GPU by the patched
- * runtime). The model carries its own: SFT v0.6.1 L scored worse with 1.1 (6/12 vs 8/12), while the RL
- * checkpoints scored better (docs/research/webgpu-repetition-penalty.md). Change it together with MODEL. */
-export const MODEL_REPETITION_PENALTY = 1;
+export const MODEL_FILE = { sha256: 'c2c740c943310ba3cf5d2a442b2de7002dc1daa88cc5ce15369679f549a3a781', bytes: 1_099_627_360 };
+/** How the model above decodes: its eval's sampling preset (vLLM semantics), which the patched runtime
+ * applies on the GPU (vendor/lfm3-webgpu-pi/PATCHES.md), so the browser decodes the way the eval did.
+ * Change it together with MODEL. SFT v0.7 (and the RL checkpoints): T 0.1, top_k 50, seed 42, repetition
+ * penalty 1.1. SFT v0.6.1 L: the same with repetition_penalty 1 (it scored 6/12 with 1.1 against 8/12
+ * without, docs/research/webgpu-repetition-penalty.md). */
+export const MODEL_SAMPLING: SamplingPreset = { temperature: 0.1, top_k: 50, seed: 42, repetition_penalty: 1.1 };
+export interface SamplingPreset {
+  /** 0 = greedy. */
+  temperature: number; top_k?: number; top_p?: number; min_p?: number; seed?: number;
+  repetition_penalty?: number; presence_penalty?: number; frequency_penalty?: number;
+}
+/** The prompt layout the model above was trained in (src/chart/prompt.ts): 'v0.2.2', the contract
+ * in the question (SFT v0.6.1 and earlier), or 'v0.2.3.4', conventions and contract in the system
+ * prompt and the bare question (SFT v0.7). Change it together with MODEL. ?layout= overrides it in
+ * the dev server. */
+export const MODEL_PROMPT_LAYOUT: PromptLayout = 'v0.2.3.4';
+/** MODEL_PROMPT_LAYOUT, or ?layout=v0.2.2|v0.2.3.4 in the dev server only (measurement). */
+export function activePromptLayout(): PromptLayout {
+  const wanted = import.meta.env?.DEV && typeof location !== 'undefined' ? new URLSearchParams(location.search).get('layout') : null;
+  return isPromptLayout(wanted) ? wanted : MODEL_PROMPT_LAYOUT;
+}
 
 // Shown on the page next to the model. Facts about the weights MODEL points at.
 export const MODEL_FACTS = {
-  name: 'LFM3 1.7B EHR agent (SFT v0.6.1)',
+  name: 'LFM3 1.7B EHR agent (SFT v0.7)',
   base: 'LiquidAI/LFM3-1.7B (LFM Open License)',
-  training: 'Supervised fine-tune (SFT v0.6.1, best-of GPT-OSS 120B and Muse Glimmer 30B traces) of LFM3 1.7B to search FHIR records with one tool, fhir_request, and cite the records it used',
+  training: 'Supervised fine-tune (SFT v0.7, Muse Glimmer 30B traces on natural-track v0.2.3.3) of LFM3 1.7B to search and update FHIR records with one tool, fhir_request, and cite the records it used',
   quantization: 'llama.cpp Q4_K_M (stock tensor layout, which the WebGPU runtime requires)',
-  result: 'Natural-prompt benchmark v0.2.2 (strict, full dev, BF16): 29.4%; Q4_K_M 28.2% vs 29.1% BF16 on the quantization subset.',
-};
+  result: 'Natural-prompt benchmark v0.2.3.4 (strict, BF16): 57.2% held-out, 59.7% dev.',
+}
 
 export const CONTEXT_TOKENS = 16384;  // Pillar 6 budget: an L episode fits in 16K tokens
 

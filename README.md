@@ -68,9 +68,13 @@ bun run typecheck               # strict TypeScript check (or: npm run typecheck
      Evidence and Chart changes with their details.
 
 **Model source:** `src/model/config.ts` → `MODEL`, written as `owner/repo@commit/file.gguf` on
-Hugging Face. The commit pins the exact file (SFT v0.6.1, sha256 in `MODEL_FILE`) and also keys the
-browser's cache, so moving the pin makes every browser download the new file; after a load, cached
-copies of the same file under other URLs are deleted. `?model=` in the page URL overrides it.
+Hugging Face. The commit pins the exact file (SFT v0.7, `LFM3-FHIR-demo-v2-Q4_K_M.gguf`, sha256 in
+`MODEL_FILE`) and also keys the browser's cache, so moving the pin makes every browser download the new
+file; after a load, cached copies of the same file under other URLs are deleted. `?model=` in the page
+URL overrides it. Next to it, `MODEL_SAMPLING` is the model's eval sampling preset (SFT v0.7: temperature
+0.1, top_k 50, seed 42, repetition penalty 1.1), which the patched WebGPU runtime applies on the GPU
+(`vendor/lfm3-webgpu-pi/PATCHES.md`), and `MODEL_PROMPT_LAYOUT` the prompt layout it was trained in
+(`v0.2.3.4`: charting conventions and the answer contract in the system prompt, `src/chart/prompt.ts`).
 
 **Harness:** `src/model/config.ts` → `MODEL_HARNESS`, the harness the model was trained in.
 `L` is the locked harness (one `fhir_request` tool, results as JSON), for SFT v0.6.1. `X16` is the

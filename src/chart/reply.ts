@@ -98,10 +98,18 @@ export function replyMessages(input: ReplyInput): { role: 'system' | 'user'; con
  * checks refuse it ("states numbers not in the cited records").
  */
 export function expandCitations(text: string, evidence: ReplyInput['evidence']): string {
-  return text.replace(/\[(\d{1,2}(?:\s*[,;]\s*\d{1,2})*)\]/g, (whole, list: string) => {
+  const numbered = text.replace(/\[(\d{1,2}(?:\s*[,;]\s*\d{1,2})*)\]/g, (whole, list: string) => {
     const refs = list.split(/[,;]/).map((n) => evidence[Number(n.trim()) - 1]?.ref);
     return refs.every(Boolean) ? refs.map((r) => `[${r}]`).join(' ') : whole;
   });
+  // A full reference ("ServiceRequest/79…", bracketed or not) is a citation as it stands. A bare id of
+  // a record shown to the writer ("the new coverage 57f6…") becomes that record's reference.
+  const byId = new Map(evidence.map((e) => [e.ref.split('/')[1]!, e.ref]));
+  const parts = numbered.split(new RegExp(`(\\[?${REF.source}\\]?)`, 'g'));
+  // split() returns text, the whole reference, then its two groups: keep the first two of every four.
+  return parts.filter((_, i) => i % 4 < 2).map((part, i) => (i % 2 === 0
+    ? part.replace(/\b[0-9a-f]{16,64}\b/gi, (id) => (byId.has(id) ? `[${byId.get(id)}]` : id))
+    : part)).join('');
 }
 
 /** pilot clean_reply(): no thinking block, trimmed. */

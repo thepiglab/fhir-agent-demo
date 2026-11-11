@@ -184,6 +184,14 @@ describe('numbered citations', () => {
     expect(expandCitations('A [1]. B [1, 2]. C [7].', evidence))
       .toBe('A [Observation/aaaaaaaa1]. B [Observation/aaaaaaaa1] [Observation/bbbbbbbb2]. C [7].');
   });
+  it('keeps full references and turns bare ids of shown records into references', () => {
+    const shown = [{ ref: 'ServiceRequest/7919988dbc2f302595d9a670', json: '{}' }, { ref: 'Coverage/57f68a4ebb695081ab15086e', json: '{}' }];
+    const text = 'Captured by ServiceRequest [ServiceRequest/7919988dbc2f302595d9a670]; the new coverage 57f68a4ebb695081ab15086e.';
+    const out = expandCitations(text, shown);
+    expect(out).toContain('[ServiceRequest/7919988dbc2f302595d9a670]');
+    expect(out).toContain('the new coverage [Coverage/57f68a4ebb695081ab15086e]');
+    expect(checkReply(out, { question: 'q', answer: null, evidence: shown, writes: [] }).problems).not.toContain('writes a raw id');
+  });
   it('refuses a raw id', () => {
     const input = { question: 'q', answer: null, evidence: [], writes: [] };
     expect(checkReply('Patient 3175428cb0d560259d8c3a17 has none.', input).problems).toContain('writes a raw id');
