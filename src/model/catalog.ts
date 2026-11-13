@@ -37,6 +37,8 @@ export interface ModelOption {
   score: number;
   /** One line on quality, for the picker. */
   quality: string;
+  /** Where the score was measured, when not on this exact file (shown on hover). */
+  scoreSource?: string;
   /** GPU memory to run it, and how that was measured. */
   memory: { bytes: number; how: string };
   /** Below the demo's quality bar: shown, but labelled experimental. */
@@ -68,30 +70,31 @@ export const MODEL_OPTIONS: readonly ModelOption[] = [
     spec: `${HF}@HF_COMMIT_V3/LFM3-FHIR-demo-v3-3bit-Q3_K-QAD.gguf`,
     file: { sha256: '35de540ae3c0746e73effdec9c9ff4e1244b5b4dc6275d729b25b6395771e2ec', bytes: 881_761_120 },
     runtime: 'lowbit', harness: 'Lc', layout: 'v0.2.3.4', sampling: SAMPLING,
-    // Lc 0.596 and 0.593 were measured on the non-e4 Q3_K-m4-fd4 / Q2_K-m4-fd3 siblings (949 / 823 MB); the
-    // e4 files' own evals replace them when done (Q2_K e4: job 51186131).
+    scoreSource: 'Measured on the non-e4 sibling (949 MB): the same weights with a 6-bit embedding. This file (4-bit embedding) has no Lc eval of its own yet.',
     score: 0.596, quality: `${pct(0.596)} on held-out questions (full precision: ${pct(BF16_SCORE)})`,
     memory: { bytes: 1_430_000_000, how: B200 },
-    quantization: 'Q3_K mix (Q3_K-m4-fd4, e4 embedding), trained with quantization-aware distillation; runs on the lowbit WebGPU runtime with the weights packed in GPU memory',
+    quantization: 'Q3_K mix (Q3_K-m4-fd4, 4-bit embedding), trained with quantization-aware distillation; runs on the lowbit WebGPU runtime with the weights packed in GPU memory',
   },
   {
     id: 'q2', bits: '2-bit', quant: 'Q2_K',
     spec: `${HF}@HF_COMMIT_V3/LFM3-FHIR-demo-v3-2bit-Q2_K-QAD.gguf`,
     file: { sha256: '2e202365c52e52a70f401771dcabb1cfd2dc242641302334cb85cc81a618cdf5', bytes: 754_948_960 },
     runtime: 'lowbit', harness: 'Lc', layout: 'v0.2.3.4', sampling: SAMPLING,
+    scoreSource: 'Measured on the non-e4 sibling (823 MB): the same weights with a 6-bit embedding. This file (4-bit embedding) has no Lc eval of its own yet.',
     score: 0.593, quality: `${pct(0.593)} on held-out questions (full precision: ${pct(BF16_SCORE)})`,
     memory: { bytes: 1_300_000_000, how: `${B200}. On an Apple M1 Max the engine's GPU buffers were 1.03 GB` },
-    quantization: 'Q2_K mix (Q2_K-m4-fd3, e4 embedding), trained with quantization-aware distillation; runs on the lowbit WebGPU runtime with the weights packed in GPU memory',
+    quantization: 'Q2_K mix (Q2_K-m4-fd3, 4-bit embedding), trained with quantization-aware distillation; runs on the lowbit WebGPU runtime with the weights packed in GPU memory',
   },
   {
     id: 'ternary', bits: 'Ternary', quant: 'Q2_0',
     spec: `${HF}@HF_COMMIT_V3/LFM3-FHIR-demo-v3-ternary-Q2_0-QAD.gguf`,
     file: { sha256: '961eb8cf1a5d7227e8521b7b3822e724eabe05dc9042fa8d2527ed0e9a380e8a', bytes: 634_329_952 },
     runtime: 'lowbit', harness: 'Lc', layout: 'v0.2.3.4', sampling: SAMPLING,
+    scoreSource: 'Measured on the non-e4 sibling (702 MB): the same weights with a 6-bit embedding. This file (4-bit embedding) has no Lc eval of its own yet.',
     score: 0.534, quality: `Experimental, the smallest: ${pct(0.534)} on held-out questions, below the demo's quality bar`,
     memory: { bytes: 1_170_000_000, how: B200 },
     experimental: true,
-    quantization: 'Ternary Q2_0 (Q2_0 e4), trained with quantization-aware distillation; runs on the lowbit WebGPU runtime with the weights packed in GPU memory',
+    quantization: 'Ternary Q2_0 (4-bit embedding), trained with quantization-aware distillation; runs on the lowbit WebGPU runtime with the weights packed in GPU memory',
   },
 ];
 

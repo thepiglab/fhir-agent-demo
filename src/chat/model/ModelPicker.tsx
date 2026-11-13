@@ -63,7 +63,12 @@ export function ModelPicker({ className }: { className?: string }) {
                   <div className="tabular-nums">
                     {fmtSize(o.file.bytes)} download · <span title={`Measured: ${o.memory.how}`} className="underline decoration-dotted underline-offset-2">{memoryText(o)}</span> to run · {RUNTIME[o.runtime]}
                   </div>
-                  <div>{o.quality}</div>
+                  <div>
+                    {o.scoreSource
+                      ? <span title={o.scoreSource} className="underline decoration-dotted underline-offset-2">{o.quality}*</span>
+                      : o.quality}
+                  </div>
+                  {o.scoreSource && <div className="sr-only">{o.scoreSource}</div>}
                   {!uploaded(o) && <div className="text-foreground/70">Not on Hugging Face yet{choosable(o) ? ' (dev server: use ?model= or models/)' : ''}.</div>}
                 </div>
               </div>
