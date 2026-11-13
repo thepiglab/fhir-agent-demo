@@ -76,6 +76,8 @@ export async function removeOption(id: ModelOptionId, label: string): Promise<nu
 export function chooseModel(id: ModelOptionId): void {
   setChosenModelId(id);
   const url = new URL(location.href);
+  if (!url.searchParams.has('quant')) { location.reload(); return; }
+  // A URL that differs only in its #hash would be a same-page navigation, not a reload; this one differs in its query.
   url.searchParams.delete('quant');
   location.replace(url.href);
 }

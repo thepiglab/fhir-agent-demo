@@ -40,7 +40,7 @@ export function ModelPicker({ className }: { className?: string }) {
           return (
             <li key={o.id}>
               <div
-                role="radio" aria-checked={x.current} aria-disabled={!canChoose && !x.current} tabIndex={canChoose || x.current ? 0 : -1}
+                role="radio" aria-checked={x.current} aria-label={`${o.bits} (${o.quant}), ${fmtSize(o.file.bytes)} download${o.recommended ? ', recommended' : ''}${o.experimental ? ', experimental' : ''}`} aria-describedby={`model-option-${o.id}-details`} aria-disabled={!canChoose && !x.current} tabIndex={canChoose || x.current ? 0 : -1}
                 onClick={() => canChoose && chooseModel(o.id)}
                 onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && canChoose) { e.preventDefault(); chooseModel(o.id); } }}
                 className={cn(
@@ -59,7 +59,7 @@ export function ModelPicker({ className }: { className?: string }) {
                     {o.experimental && <Badge variant="outline">Experimental</Badge>}
                   </span>
                 </div>
-                <div className="mt-1 pl-6 text-xs leading-relaxed text-muted-foreground">
+                <div id={`model-option-${o.id}-details`} className="mt-1 pl-6 text-xs leading-relaxed text-muted-foreground">
                   <div className="tabular-nums">
                     {fmtSize(o.file.bytes)} download · <span title={`Measured: ${o.memory.how}`} className="underline decoration-dotted underline-offset-2">{memoryText(o)}</span> to run · {RUNTIME[o.runtime]}
                   </div>
