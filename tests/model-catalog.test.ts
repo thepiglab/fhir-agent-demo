@@ -51,3 +51,25 @@ describe('model picker catalog', () => {
     expect(replaces(v3q4, 'https://huggingface.co/someone/else/resolve/x/LFM3-FHIR-demo-v2-Q4_K_M.gguf')).toBe(false);
   });
 });
+
+import { fullyStored, optionView } from '../src/model/option-view.ts';
+describe('picker view (shared by the landing page and the Chart assistant)', () => {
+  it('labels sizes, memory, badges and the sibling-score note', () => {
+    const q4 = optionView(modelOption('q4'));
+    expect(q4.download).toBe('1.1 GB');
+    expect(q4.badges.map((b) => b.label)).toEqual(['Recommended']);
+    expect(q4.qualityNote).toBeNull();
+    const q2 = optionView(modelOption('q2'));
+    expect(q2.download).toBe('755 MB');
+    expect(q2.memoryShort).toBe('1.3 GB GPU memory');
+    expect(q2.qualityShort).toBe('59.3% on held-out questions*');
+    expect(q2.qualityNote).toMatch(/non-e4 sibling/);
+    expect(optionView(modelOption('ternary')).badges.map((b) => b.label)).toEqual(['Experimental']);
+    expect(q2.label).toBe('2-bit (Q2_K), 755 MB download');
+  });
+  it('counts a model as saved once (nearly) all of it is stored', () => {
+    expect(fullyStored(modelOption('q4'), 1_091_380_480)).toBe(true);   // the vendored runtime's tensor ranges
+    expect(fullyStored(modelOption('q2'), 754_948_960)).toBe(true);
+    expect(fullyStored(modelOption('q2'), 400_000_000)).toBe(false);
+  });
+});

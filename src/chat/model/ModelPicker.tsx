@@ -7,16 +7,11 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { app } from '../../app/state.ts';
-import { chooseModel, fmtBytes, fmtSize, optionStates, removeOption } from '../../app/model-gate.ts';
+import { chooseModel, fmtBytes, optionStates, removeOption } from '../../app/model-gate.ts';
 import type { OptionState } from '../../app/model-gate.ts';
 import { choosable, uploaded } from '../../model/catalog.ts';
-import type { ModelOption } from '../../model/catalog.ts';
+import { optionView } from '../../model/option-view.ts';
 import { useModel } from './useModel.ts';
-
-const RUNTIME: Record<ModelOption['runtime'], string> = { vendored: 'standard runtime', lowbit: 'low-bit runtime' };
-
-/** "About 1.3 GB of GPU memory". */
-const memoryText = (o: ModelOption): string => `about ${(o.memory.bytes / 1e9).toFixed(1)} GB of GPU memory`;
 
 export function ModelPicker({ className }: { className?: string }) {
   const s = useModel();
@@ -36,11 +31,12 @@ export function ModelPicker({ className }: { className?: string }) {
       <ul role="radiogroup" aria-label="Model size" className="space-y-1.5">
         {states.map((x) => {
           const o = x.option;
+          const v = optionView(o);
           const canChoose = choosable(o) && !x.current && !busy;
           return (
             <li key={o.id}>
               <div
-                role="radio" aria-checked={x.current} aria-label={`${o.bits} (${o.quant}), ${fmtSize(o.file.bytes)} download${o.recommended ? ', recommended' : ''}${o.experimental ? ', experimental' : ''}`} aria-describedby={`model-option-${o.id}-details`} aria-disabled={!canChoose && !x.current} tabIndex={canChoose || x.current ? 0 : -1}
+                role="radio" aria-checked={x.current} aria-label={v.label} aria-describedby={`model-option-${o.id}-details`} aria-disabled={!canChoose && !x.current} tabIndex={canChoose || x.current ? 0 : -1}
                 onClick={() => canChoose && chooseModel(o.id)}
                 onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && canChoose) { e.preventDefault(); chooseModel(o.id); } }}
                 className={cn(
@@ -52,23 +48,24 @@ export function ModelPicker({ className }: { className?: string }) {
                   <span className={cn('flex size-4 shrink-0 items-center justify-center rounded-full border', x.current && 'border-brand bg-brand text-white')}>
                     {x.current && <Check className="size-3" />}
                   </span>
-                  <span className="font-medium">{o.bits}</span>
-                  <span className="text-xs text-muted-foreground">{o.quant}</span>
+                  <span className="font-medium">{v.title}</span>
+                  <span className="text-xs text-muted-foreground">{v.quant}</span>
                   <span className="ml-auto flex gap-1">
-                    {o.recommended && <Badge variant="secondary" title={o.recommended.reason} aria-label={`Recommended: ${o.recommended.reason}`}>Recommended</Badge>}
-                    {o.experimental && <Badge variant="outline">Experimental</Badge>}
+                    {v.badges.map((b) => (
+                      <Badge key={b.label} variant={b.kind === 'recommended' ? 'secondary' : 'outline'} title={b.title} aria-label={b.title ? `${b.label}: ${b.title}` : undefined}>{b.label}</Badge>
+                    ))}
                   </span>
                 </div>
                 <div id={`model-option-${o.id}-details`} className="mt-1 pl-6 text-xs leading-relaxed text-muted-foreground">
                   <div className="tabular-nums">
-                    {fmtSize(o.file.bytes)} download · <span title={`Measured: ${o.memory.how}`} className="underline decoration-dotted underline-offset-2">{memoryText(o)}</span> to run · {RUNTIME[o.runtime]}
+                    {v.download} download · <span title={v.memoryHow} className="underline decoration-dotted underline-offset-2">{v.memory}</span> to run · {v.runtime}
                   </div>
                   <div>
-                    {o.scoreSource
-                      ? <span title={o.scoreSource} className="underline decoration-dotted underline-offset-2">{o.quality}*</span>
-                      : o.quality}
+                    {v.qualityNote
+                      ? <span title={v.qualityNote} className="underline decoration-dotted underline-offset-2">{v.quality}</span>
+                      : v.quality}
                   </div>
-                  {o.scoreSource && <div className="sr-only">{o.scoreSource}</div>}
+                  {v.qualityNote && <div className="sr-only">{v.qualityNote}</div>}
                   {!uploaded(o) && <div className="text-foreground/70">Not on Hugging Face yet{choosable(o) ? ' (dev server: use ?model= or models/)' : ''}.</div>}
                 </div>
               </div>

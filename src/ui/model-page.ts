@@ -9,7 +9,10 @@
 import { fetchDataJson, fetchDataText } from '../app/datafile.ts';
 import '../app/tokens.css';
 import '../styles/model-page.css';
-import { MODEL_FACTS, MODEL_FILE } from '../model/config.ts';
+import { MODEL_FACTS, MODEL_FILE, MODEL_OPTION } from '../model/config.ts';
+import { MODEL_OPTIONS, choosable, setChosenModelId } from '../model/catalog.ts';
+import type { ModelOption, ModelOptionId } from '../model/catalog.ts';
+import { fullyStored, optionView } from '../model/option-view.ts';
 import type { Model } from '../model/model.ts';
 import type { ModelStatus } from '../app/state.ts';
 import { FhirStore, pyDumps, pyParse, ref } from '../fhir/fhir_store.ts';
@@ -77,6 +80,48 @@ const note = (text: string, cls = '') => { const n = $('cta-note'); n.textConten
 /** The landing's state, as far as the call to action goes. */
 let size: number | null = null;
 let stored = 0;
+/** What the probe found for this page's model (MODEL_OPTION). */
+let probed: { found: Awaited<ReturnType<Host['probe']>>; remote: Awaited<ReturnType<Host['remoteBytes']>> } | null = null;
+/** The model picker: the option chosen here, and the bytes this browser holds of each option. */
+let chosen: ModelOption = MODEL_OPTION;
+let savedBytes = new Map<ModelOptionId, number>();
+/** ?start=1: the visitor chose another model and asked to download it; this page now runs that model. */
+const autoStart = params.get('start') === '1';
+if (autoStart) { params.delete('start'); history.replaceState(null, '', location.pathname + (params.size ? `?${params}` : '') + location.hash); }
+
+/**
+ * The model picker above the button (the same options, wording and badges as the Chart assistant's,
+ * src/model/option-view.ts). Choosing one saves it (the key the Chart assistant reads) and relabels
+ * the button; a model already in this browser offers "Start" instead of "Download".
+ */
+function renderModels(host: Host): void {
+  const box = $('lp-models');
+  const options = MODEL_OPTIONS.filter(choosable);
+  if (host.overridden || probed?.found.state === 'unsupported' || options.length < 2) { box.hidden = true; return; }
+  box.hidden = false;
+  const cards = options.map((o) => {
+    const v = optionView(o);
+    const saved = fullyStored(o, savedBytes.get(o.id) ?? 0);
+    const input = h('input', {
+      type: 'radio', name: 'lp-model', value: o.id, class: 'sr-only', 'aria-label': v.label,
+      'aria-describedby': `lp-model-${o.id}-details`,
+      onchange: () => { chosen = o; setChosenModelId(o.id); renderModels(host); renderCta(host); },
+    });
+    input.checked = o.id === chosen.id;
+    return h('label', { class: 'lp-model' + (o.id === chosen.id ? ' on' : '') },
+      input,
+      h('span', { class: 'lp-model-head' },
+        h('strong', null, v.title),
+        h('span', { class: 'lp-model-quant' }, v.quant),
+        v.badges.map((b) => h('span', { class: 'badge ' + (b.kind === 'recommended' ? 'accent' : 'warn'), title: b.title ?? null }, b.label))),
+      h('span', { class: 'lp-model-body', id: `lp-model-${o.id}-details` },
+        h('span', null, `${v.download} · `, h('span', { title: v.memoryHow }, v.memoryShort)),
+        h('span', { title: v.qualityNote ?? v.quality }, v.qualityShort),
+        v.qualityNote ? h('span', { class: 'sr-only' }, v.qualityNote) : null,
+        saved ? h('span', { class: 'lp-model-saved' }, svg(ICON.check), 'Saved in this browser') : null));
+  });
+  fill(box, h('legend', { class: 'lp-models-legend' }, 'Choose a model size'), h('div', { class: 'lp-models-grid' }, cards));
+}
 
 async function landing(): Promise<void> {
   themeToggle($('theme'));
@@ -92,36 +137,66 @@ async function landing(): Promise<void> {
   await refresh(host);
 }
 
-/** Decide the one primary action from what this browser has. */
+/** Find out what this browser has, then show the picker and the one primary action. */
 async function refresh(host: Host): Promise<void> {
-  const [found, remote] = await Promise.all([host.probe(), host.remoteBytes()]);
+  const [found, remote, states] = await Promise.all([host.probe(), host.remoteBytes(), host.optionStates().catch(() => [])]);
+  probed = { found, remote };
   size = (remote.ok ? remote.bytes : null) ?? host.expectedBytes;
   stored = found.stored;
+  savedBytes = new Map(states.map((x) => [x.option.id, x.stored]));
   renderDetails(host);
+  renderModels(host);
+  const action = renderCta(host);
+  if (autoStart && action === 'download' && chosen.id === MODEL_OPTION.id) void start(host);
+}
+
+/** The one primary action for the chosen model; returns what it offers. */
+function renderCta(host: Host): 'start' | 'download' | 'none' {
+  if (!probed) return 'none';
+  const { found, remote } = probed;
   if (found.state === 'unsupported') {
     fill(cta(), h('div', { class: 'lp-alert' }, svg(ICON.alert), h('div', null,
       h('strong', null, 'This browser can’t run the model.'),
       h('span', null, ' It needs WebGPU: a recent Chrome or Edge on a laptop or desktop. You can still browse the charts.'))));
     note('');
-    return;
+    return 'none';
   }
+  const startLink = (bytes: number) => {
+    fill(cta(), h('a', { class: 'btn lg primary lp-main-btn', href: chartHref(), onclick: () => setChosenModelId(chosen.id) },
+      'Start', h('span', { class: 'lp-wide' }, ' the Chart assistant'), svg(ICON.arrowRight)));
+    note(`The ${chosen.bits} model is stored in this browser (${fmtBytes(bytes)}), so it opens in a few seconds.`);
+    return 'start' as const;
+  };
+  const downloadButton = (left: number | null, total: number, onclick: () => void) => {
+    const label: Child[] = left
+      ? ['Finish the download', h('span', { class: 'lp-wide' }, ' and start'), h('span', { class: 'nowrap' }, ` · ${fmtSize(left)} left`)]
+      : ['Download ', h('span', { class: 'lp-wide' }, 'the model '), 'and start', h('span', { class: 'nowrap' }, ` · ${fmtSize(total)}`)];
+    fill(cta(), h('button', { type: 'button', class: 'btn lg primary lp-main-btn', onclick }, svg(ICON.download), h('span', null, label)));
+    note('Downloads once and stays in this browser. Needs WebGPU (a recent Chrome or Edge).');
+    return 'download' as const;
+  };
+
+  // Another model than this page runs: start it if it is here, else reload into it and download.
+  if (!host.overridden && chosen.id !== MODEL_OPTION.id) {
+    const have = savedBytes.get(chosen.id) ?? 0;
+    if (fullyStored(chosen, have)) return startLink(have);
+    return downloadButton(have > 0 ? chosen.file.bytes - have : null, chosen.file.bytes, () => {
+      setChosenModelId(chosen.id);
+      const q = new URLSearchParams(params);
+      q.set('start', '1');
+      location.assign(`${location.pathname}?${q}`);
+    });
+  }
+
   const complete = stored > 0 && (!size || stored >= size * 0.98);
-  if (complete || (stored > 0 && !remote.ok) || host.overridden && stored > 0) {
-    fill(cta(), h('a', { class: 'btn lg primary lp-main-btn', href: chartHref() }, 'Open the Chart assistant', svg(ICON.arrowRight)));
-    note(`The model is stored in this browser (${fmtBytes(stored)}), so it opens in a few seconds.`);
-    return;
-  }
+  if (complete || (stored > 0 && !remote.ok) || host.overridden && stored > 0) return startLink(stored);
   if (!remote.ok && !host.overridden) {
     fill(cta(), failureBlock(`Can’t reach the model weights (${remote.status}). Try again later.`, () => void refresh(host)));
     note('');
-    return;
+    return 'none';
   }
   const left = size && stored ? size - stored : null;
-  const label: Child[] = left
-    ? ['Finish the download', h('span', { class: 'lp-wide' }, ' and start'), h('span', { class: 'nowrap' }, ` · ${fmtSize(left)} left`)]
-    : ['Download ', h('span', { class: 'lp-wide' }, 'the model '), 'and start', h('span', { class: 'nowrap' }, ` · ${fmtSize(size ?? APPROX_BYTES)}`)];
-  fill(cta(), h('button', { type: 'button', class: 'btn lg primary lp-main-btn', onclick: () => void start(host) }, svg(ICON.download), h('span', null, label)));
-  note('Downloads once and stays in this browser. Needs WebGPU (a recent Chrome or Edge).');
+  return downloadButton(left, size ?? APPROX_BYTES, () => void start(host));
 }
 
 /** Download (and check on the GPU), wait for the browser to finish storing it, then open the app. */
