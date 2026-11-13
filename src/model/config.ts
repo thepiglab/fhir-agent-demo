@@ -17,6 +17,23 @@ import type { PromptLayout } from '../chart/prompt.ts';
 export const MODEL = 'mkieffer/LFM3-FHIR-demo-v1@d6c2dc59092969aede3650167fb899632e719342/LFM3-FHIR-demo-v2-Q4_K_M.gguf';
 /** The pinned file, as Hugging Face reports it (X-Linked-ETag, X-Linked-Size). */
 export const MODEL_FILE = { sha256: 'c2c740c943310ba3cf5d2a442b2de7002dc1daa88cc5ce15369679f549a3a781', bytes: 1_099_627_360 };
+/**
+ * The WebGPU runtime that runs MODEL. Change it together with MODEL.
+ *   'vendored'  vendor/lfm3-webgpu-pi: the webml-community runtime, patched. Q4_K_M/Q6_K GGUFs in the stock
+ *               tensor layout only; it needs 16-bit shaders for full speed.
+ *   'lowbit'    vendor/lfm3-lowbit: fhir-env's lowbit runtime (Rust/wasm + core WGSL). GGUF blocks stay
+ *               packed in VRAM, for 1- to 4-bit files (Q1_0, Q2_0, TQ2_0, Q2_K to Q6_K, Q8_0); same API,
+ *               same weights cache (gguf-cache-v1), its own chat template and tool-call parser from the GGUF.
+ * The page's ?runtime=vendored|lowbit overrides it, e.g. with ?model= for a low-bit file.
+ */
+export type ModelRuntime = 'vendored' | 'lowbit';
+export const MODEL_RUNTIME: ModelRuntime = 'vendored';
+export const isModelRuntime = (v: unknown): v is ModelRuntime => v === 'vendored' || v === 'lowbit';
+/** MODEL_RUNTIME, or ?runtime= in the page URL. */
+export function activeRuntime(): ModelRuntime {
+  const wanted = typeof location === 'undefined' ? null : new URLSearchParams(location.search).get('runtime');
+  return isModelRuntime(wanted) ? wanted : MODEL_RUNTIME;
+}
 /** How the model above decodes: its eval's sampling preset (vLLM semantics), which the patched runtime
  * applies on the GPU (vendor/lfm3-webgpu-pi/PATCHES.md), so the browser decodes the way the eval did.
  * Change it together with MODEL. SFT v0.7 (and the RL checkpoints): T 0.1, top_k 50, seed 42, repetition

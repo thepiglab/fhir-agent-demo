@@ -115,7 +115,7 @@ export default defineConfig({
       // Two pages, resolved from the project root.
       input: { main: 'index.html', chart: 'chart.html' },
       // Keep the WebGPU runtime in its own chunk, cached apart from app code.
-      output: { manualChunks: (id: string) => (id.includes('/vendor/lfm3-webgpu-pi/') ? 'lfm3-runtime' : undefined) },
+      output: { manualChunks: (id: string) => (id.includes('/vendor/lfm3-webgpu-pi/') ? 'lfm3-runtime' : id.includes('/vendor/lfm3-lowbit/') ? 'lfm3-lowbit' : undefined) },
     },
   },
   server: { port: 5173 },

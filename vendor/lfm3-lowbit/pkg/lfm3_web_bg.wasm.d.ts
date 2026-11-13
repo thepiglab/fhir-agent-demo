@@ -1,0 +1,35 @@
+/* tslint:disable */
+/* eslint-disable */
+export const memory: WebAssembly.Memory;
+export const __wbg_engine_free: (a: number, b: number) => void;
+export const __wbg_textstream_free: (a: number, b: number) => void;
+export const engine_adapter: (a: number) => [number, number];
+export const engine_decode: (a: number, b: number, c: number, d: number) => [number, number];
+export const engine_encode: (a: number, b: number, c: number) => [number, number];
+export const engine_generate: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: any) => any;
+export const engine_load: (a: any, b: number, c: number, d: any) => any;
+export const engine_max_ctx: (a: number) => number;
+export const engine_meta_str: (a: number, b: number, c: number) => [number, number];
+export const engine_new_stream: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number];
+export const engine_parse_reply: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
+export const engine_render_chat: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number, number];
+export const engine_reset: (a: number) => void;
+export const engine_seq_len: (a: number) => number;
+export const engine_token_id: (a: number, b: number, c: number) => number;
+export const engine_vram_bytes: (a: number) => number;
+export const textstream_finish: (a: number) => [number, number];
+export const textstream_full_text: (a: number) => [number, number];
+export const textstream_push: (a: number, b: number, c: number) => [number, number];
+export const textstream_reasoning_tokens: (a: number) => number;
+export const wasm_bindgen_2514664e3b2c9a7c___convert__closures_____invoke___js_sys_adfa250c9de6b6cd___Function_fn_wasm_bindgen_2514664e3b2c9a7c___JsValue_____wasm_bindgen_2514664e3b2c9a7c___sys__Undefined___js_sys_adfa250c9de6b6cd___Function_fn_wasm_bindgen_2514664e3b2c9a7c___JsValue_____wasm_bindgen_2514664e3b2c9a7c___sys__Undefined_______true_: (a: number, b: number, c: any, d: any) => void;
+export const wasm_bindgen_2514664e3b2c9a7c___convert__closures_____invoke___wasm_bindgen_2514664e3b2c9a7c___JsValue__core_d941ad8722425d2e___result__Result_____wasm_bindgen_2514664e3b2c9a7c___JsError___true_: (a: number, b: number, c: any) => [number, number];
+export const wasm_bindgen_2514664e3b2c9a7c___convert__closures_____invoke___wasm_bindgen_2514664e3b2c9a7c___JsValue______true_: (a: number, b: number, c: any) => void;
+export const __wbindgen_malloc: (a: number, b: number) => number;
+export const __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
+export const __wbindgen_free: (a: number, b: number, c: number) => void;
+export const __wbindgen_exn_store: (a: number) => void;
+export const __externref_table_alloc: () => number;
+export const __wbindgen_externrefs: WebAssembly.Table;
+export const __wbindgen_destroy_closure: (a: number, b: number) => void;
+export const __externref_table_dealloc: (a: number) => void;
+export const __wbindgen_start: () => void;

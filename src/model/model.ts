@@ -5,15 +5,19 @@
 // IndexedDB cache ("gguf-cache-v1", keyed by URL), so a second visit loads from disk.
 import './raf-shim.ts';
 import { Lfm3ForCausalLM } from '../../vendor/lfm3-webgpu-pi/Lfm3ForCausalLM.js';
-import type { LoadOptions, LoadProgress } from '../../vendor/lfm3-webgpu-pi/Lfm3ForCausalLM.js';
-import { MODEL, contextTokens } from './config.ts';
+import type { ChatSession, LoadOptions, LoadProgress } from '../../vendor/lfm3-webgpu-pi/Lfm3ForCausalLM.js';
+import { MODEL, activeRuntime, contextTokens } from './config.ts';
 import { hubRepo, modelVersion } from './versions.ts';
 
 export { hubRepo, modelVersion };
 
 const CACHE_DB = 'gguf-cache-v1';
 
-export type Model = Lfm3ForCausalLM;
+/** What the page uses of a loaded model, which both runtimes (config.ts, MODEL_RUNTIME) provide. */
+export interface Model {
+  create_session(): ChatSession;
+  dispose(): Promise<void>;
+}
 
 /** Where the weights come from: the URL the runtime fetches, a label, and a page to link. */
 export interface ModelSource {
@@ -213,5 +217,28 @@ export async function load({ url, file = null, onProgress = () => {} }: {
   } else {
     await navigator.storage?.persist?.().catch(() => {});  // ask not to evict ~1 GB of weights
   }
+  if (activeRuntime() === 'lowbit') {
+    await cacheAtVendoredVersion();
+    const lowbit = await import('../../vendor/lfm3-lowbit/lfm3.js');
+    return lowbit.Lfm3ForCausalLM.from_pretrained(source, options);
+  }
   return Lfm3ForCausalLM.from_pretrained(source, options);
+}
+
+// Both runtimes keep weights in gguf-cache-v1 (stores "chunks" keyed [url, begin, end] and "meta"
+// keyed url). The vendored runtime opens it at version 2 and the lowbit runtime at whatever version
+// exists, creating version 1 when there is none; a later version-2 upgrade by the vendored runtime
+// would then be blocked by the lowbit runtime's open connection. Creating it at version 2 first
+// (the same two stores, as the vendored runtime would) keeps one version for both.
+function cacheAtVendoredVersion(): Promise<void> {
+  if (!('indexedDB' in globalThis)) return Promise.resolve();
+  return new Promise<void>((resolve) => {
+    const req = indexedDB.open(CACHE_DB, 2);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      for (const store of ['chunks', 'meta']) if (!db.objectStoreNames.contains(store)) db.createObjectStore(store);
+    };
+    req.onsuccess = () => { req.result.close(); resolve(); };
+    req.onerror = req.onblocked = () => resolve();  // a newer version, or open elsewhere: leave it to the runtime
+  });
 }

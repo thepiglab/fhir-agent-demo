@@ -5,7 +5,7 @@
 // data do not wait for the WebGPU runtime; the model gate does the same.
 import { resolveSource, remoteSize, storedBytes, offload, load, pruneStale, replacedBy, latestOnHub, hubRepo, modelVersion } from '../model/model.ts';
 import type { Model, SavedModel, SizeResult } from '../model/model.ts';
-import { MODEL_FACTS, MODEL_FILE } from '../model/config.ts';
+import { MODEL_FACTS, MODEL_FILE, activeRuntime } from '../model/config.ts';
 import type { ModelStatus } from '../app/state.ts';  // type only: keeps this module free of the app's state
 
 export type { ModelStatus };
@@ -225,7 +225,9 @@ export async function deviceChecks(): Promise<DeviceCheck[]> {
       const info = adapter.info;
       items.push({ ok: true, name: 'WebGPU', detail: [info?.vendor, info?.architecture].filter(Boolean).join(' · ') || 'Available' });
       const f16 = adapter.features.has('shader-f16');
-      items.push({ ok: f16 ? true : null, name: '16-bit shaders', detail: f16 ? 'Supported' : 'Not supported; expect slower answers' });
+      // The lowbit runtime uses core WGSL only, so it runs the same without 16-bit shaders.
+      if (activeRuntime() === 'lowbit') items.push({ ok: true, name: '16-bit shaders', detail: f16 ? 'Supported' : 'Not needed by this model' });
+      else items.push({ ok: f16 ? true : null, name: '16-bit shaders', detail: f16 ? 'Supported' : 'Not supported; expect slower answers' });
     }
   }
   if (navigator.storage?.estimate) {
