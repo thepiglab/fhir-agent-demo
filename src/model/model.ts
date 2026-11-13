@@ -207,19 +207,19 @@ export async function load({ url, file = null, onProgress = () => {}, onActivity
   /** Aborts the load (its fetches; the runtime stops at its next read). */
   signal?: AbortSignal;
 }): Promise<Model> {
-  // Bytes the lowbit runtime has fetched (watchedFetch) and the file's size: shown as download progress
-  // between its own reports, which come per finished tensor (the first, the embedding, is large).
-  const net = { fetched: 0, total: null as number | null, reported: 0 };
+  let bytes: { loaded: number; total: number | null } = { loaded: 0, total: null };
   const options: LoadOptions = {
     maxLength: contextTokens(),
     signal,
     onProgress: (p: LoadProgress) => {
       onActivity();
       if (p.status === 'weights' && p.kind === 'bytes') {
-        net.reported = p.loaded ?? 0;
-        onProgress({ phase: 'download', loaded: Math.max(net.reported, net.fetched), total: p.total ?? net.total, message: p.message });
+        bytes = { loaded: p.loaded ?? 0, total: p.total ?? null };
+        onProgress({ phase: 'download', loaded: p.loaded, total: p.total, message: p.message });
+      } else if (p.status === 'weights' && p.kind === 'tensors') {
+        // The lowbit runtime uploads tensors while it downloads: stay on the download until it is done.
+        if (bytes.total === null || bytes.loaded >= bytes.total) onProgress({ phase: 'gpu', loaded: p.loaded, total: p.total, message: p.message });
       }
-      else if (p.status === 'weights' && p.kind === 'tensors') onProgress({ phase: 'gpu', loaded: p.loaded, total: p.total, message: p.message });
       else onProgress({ phase: 'other', message: p.message });
     },
   };
@@ -233,16 +233,9 @@ export async function load({ url, file = null, onProgress = () => {}, onActivity
   }
   if (activeRuntime() === 'lowbit') {
     await cacheAtVendoredVersion();
-    // Watch the bytes themselves: they show headway between the runtime's progress events, and the
-    // signal reaches every range request.
-    options.fetch = watchedFetch(options.fetch ?? globalThis.fetch.bind(globalThis), signal, {
-      size: (n) => { net.total ??= n; },
-      bytes: (n) => {
-        onActivity();
-        net.fetched += n;
-        if (net.fetched > net.reported) onProgress({ phase: 'download', loaded: net.fetched, total: net.total });
-      },
-    });
+    // Watch the bytes themselves too (headway for the stall watchdog while the loader retries a block),
+    // and make sure the signal reaches every range request. The runtime reports byte progress itself.
+    options.fetch = watchedFetch(options.fetch ?? globalThis.fetch.bind(globalThis), signal, onActivity);
     const lowbit = await import('../../vendor/lfm3-lowbit/lfm3.js');
     return lowbit.Lfm3ForCausalLM.from_pretrained(source, options);
   }
@@ -268,22 +261,18 @@ function cacheAtVendoredVersion(): Promise<void> {
 }
 
 /**
- * `fetchFn` with `signal` added to every request, reporting the file's size (from a HEAD's or a range
- * response's headers) and each chunk of bytes as it arrives.
+ * `fetchFn` with `signal` added to every request (with the request's own signal, which the lowbit
+ * loader uses for its per-request timeouts), calling `onActivity` as each response's bytes arrive.
  */
 function watchedFetch(
-  fetchFn: (input: string, init?: RequestInit) => Promise<Response>, signal: AbortSignal | undefined,
-  on: { size: (bytes: number) => void; bytes: (n: number) => void },
+  fetchFn: (input: string, init?: RequestInit) => Promise<Response>, signal: AbortSignal | undefined, onActivity: () => void,
 ): (input: string, init?: RequestInit) => Promise<Response> {
   return async (input, init = {}) => {
     const signals = [init.signal, signal].filter((x): x is AbortSignal => !!x);
     const res = await fetchFn(input, { ...init, signal: signals.length > 1 ? AbortSignal.any(signals) : signals[0] });
-    const total = Number(/\/(\d+)$/.exec(res.headers.get('content-range') ?? '')?.[1]
-      ?? ((init.method ?? 'GET').toUpperCase() === 'HEAD' ? res.headers.get('x-linked-size') ?? res.headers.get('content-length') : NaN));
-    if (Number.isFinite(total) && total > 0) on.size(total);
-    on.bytes(0);
+    onActivity();
     if (!res.body) return res;
-    const counted = res.body.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({ transform(chunk, out) { on.bytes(chunk.byteLength); out.enqueue(chunk); } }));
+    const counted = res.body.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({ transform(chunk, out) { onActivity(); out.enqueue(chunk); } }));
     return new Response(counted, { status: res.status, statusText: res.statusText, headers: res.headers });
   };
 }

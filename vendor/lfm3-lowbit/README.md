@@ -11,10 +11,10 @@ This runtime is used when `MODEL_RUNTIME` (src/model/config.ts) is `'lowbit'`, o
 - Build: `lowbit/build-web.sh` on an HPG node. It compiles `cargo build --release --target wasm32-unknown-unknown -p lfm3-web`, then runs `wasm-bindgen --target web --out-dir web/js/pkg`.
 - To update: copy `web/js/lfm3.js` and `web/js/pkg/` here, then note the commit below.
 
-Vendored from: fhir-env `claude/lowbit-runtime` @ bfab96c, the build that passed the headless Chrome check on a B200 (HPG job 51187866). It is byte-identical to the HPG copy. sha256:
-- `lfm3.js` 93891d6407e1d0f49b38a170c34fb22c35d3870c59b513ccc2fed2641c595149
-- `pkg/lfm3_web.js` a3e5dd2c51045b7ca99153329e1a3d99c64efd5487869f4c0e3cdcb699d3896c
-- `pkg/lfm3_web_bg.wasm` f2e0dcf9ef2501ed6634ce71a86d405fb5c2dfcff6817c95b3a4ca756c2ffdd2
+Vendored from: fhir-env `claude/lowbit-runtime` @ 6aa6376. This is the download-stall fix: bounded range requests with retry and resume, byte progress, and abort via `options.signal`. Its wasm is the 58d7203 build, which also has the faster prefill. It was tested in headless Chrome on a B200 against a fault-injecting Range server. sha256:
+- `lfm3.js` 6c1fe8cafd39382a5635e59db62ea3ca1f153c02db8fd2a2c3f5633c78a564d9
+- `pkg/lfm3_web.js` 7f37b8b3908edcb6a55956843e3630809e5caf42757a80700a8e8ce29f27e3e5
+- `pkg/lfm3_web_bg.wasm` f2e07df33b776d115e1fc8e1d8f25ccebda29c772096d6e33c6c367894da0431
 
 Keep `pkg/` next to `lfm3.js`. `init()` resolves the .wasm from `pkg/lfm3_web.js`'s own URL, and Vite emits it as an asset. Pass `wasmUrl` to `from_pretrained` only if the .wasm moves.
 

@@ -175,11 +175,15 @@ let current: Model | null = null;
 let loading: Promise<Model> | null = null;
 let deciding: Promise<Model | null> | null = null;
 
-/** A load with no headway (no progress event, no bytes) for this long is stopped and reported. */
-export const STALL_MS = 60_000;
+/**
+ * A load with no headway (no progress event, no bytes) for this long is stopped and reported. The lowbit
+ * loader retries a stalled block itself (6 tries with backoff, about 150 s at worst) and fails with its own
+ * error, so it gets longer; the vendored runtime does not retry.
+ */
+export const stallMs = (): number => (activeRuntime() === 'lowbit' ? 180_000 : 60_000);
 export class StallError extends Error {
-  constructor() {
-    super(`The download stopped: nothing arrived for ${STALL_MS / 1000} seconds. Check the connection and try again; what was already downloaded is kept.`);
+  constructor(ms: number) {
+    super(`The download stopped: nothing arrived for ${Math.round(ms / 1000)} seconds. Check the connection and try again; what was already downloaded is kept.`);
     this.name = 'StallError';
   }
 }
@@ -209,15 +213,16 @@ function begin(file: File | null): Promise<Model> {
       onProgress: (p) => publish({ state: 'loading', phase: p.phase, loaded: p.loaded ?? 0, total: p.total ?? null, message: p.message }),
     });
   })();
-  // The watchdog: a load that makes no headway for STALL_MS is aborted and fails, so the page offers
+  // The watchdog: a load that makes no headway for stallMs() is aborted and fails, so the page offers
   // Try again instead of waiting forever. A model that arrives after that is let go.
   let timer: ReturnType<typeof setInterval> | undefined;
+  const limit = stallMs();
   const stalled = new Promise<never>((_, reject) => {
     timer = setInterval(() => {
-      if (performance.now() - lastActivity < STALL_MS) return;
+      if (performance.now() - lastActivity < limit) return;
       clearInterval(timer);
-      abort.abort(new StallError());
-      reject(new StallError());
+      abort.abort(new StallError(limit));
+      reject(new StallError(limit));
     }, 2_000);
   });
   run.then((model) => { if (abort.signal.aborted) void model.dispose(); }, () => {}).finally(() => clearInterval(timer));

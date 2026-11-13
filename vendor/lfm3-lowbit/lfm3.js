@@ -46,10 +46,41 @@ const idb = (db, store, mode, f) => new Promise((resolve) => {
   } catch { resolve(undefined); }
 });
 
-/** Byte-range reader over HTTP (or a caller-supplied fetch), with an optional IndexedDB range cache. */
-async function rangeReader(url, fetchFn, useCache) {
+const sleep = (ms, signal) => new Promise((resolve, reject) => {
+  const t = setTimeout(resolve, ms);
+  signal?.addEventListener('abort', () => { clearTimeout(t); reject(signal.reason ?? new DOMException('aborted', 'AbortError')); }, { once: true });
+});
+const abortError = (signal) => signal?.reason ?? new DOMException('aborted', 'AbortError');
+
+/** One fetch with its own AbortController: aborted by the caller's signal, by `timeoutMs` without a response, or by
+ *  the returned `stall()` (used by readers that see no bytes for a while). */
+function guardedFetch(fetchFn, url, init, signal, timeoutMs) {
+  const ac = new AbortController();
+  const onAbort = () => ac.abort(abortError(signal));
+  if (signal) { if (signal.aborted) onAbort(); else signal.addEventListener('abort', onAbort, { once: true }); }
+  const t = setTimeout(() => ac.abort(new Error(`no response in ${timeoutMs / 1000} s`)), timeoutMs);
+  const p = fetchFn(url, { ...init, signal: ac.signal }).finally(() => clearTimeout(t));
+  return { p, ac, done: () => signal?.removeEventListener('abort', onAbort) };
+}
+
+/**
+ * Byte-range reader over HTTP (or a caller-supplied fetch), with an optional IndexedDB range cache.
+ * Robust to flaky CDNs: the file is fetched in 8 MB Range requests (one block ahead is prefetched); a body that
+ * stalls for STALL_MS is aborted; short bodies resume from the last byte received; a 200 reply to a Range request
+ * is read only up to the block's end and then cancelled; each block is retried with backoff and a clear error is
+ * thrown after RETRIES attempts. Only complete blocks are cached. `onBytes(loaded, total)` reports bytes as they
+ * arrive from the network or the cache.
+ */
+const STALL_MS = 20000, RETRIES = 6;
+async function rangeReader(url, fetchFn, useCache, { signal, onBytes = () => {} } = {}) {
   let size = null, etag = null;
-  const head = await fetchFn(url, { method: 'HEAD' });
+  let head = null;
+  for (let a = 0; ; a++) {
+    const g = guardedFetch(fetchFn, url, { method: 'HEAD' }, signal, STALL_MS);
+    try { head = await g.p; break; }
+    catch (e) { if (signal?.aborted) throw abortError(signal); if (a + 1 >= RETRIES) throw new Error(`HEAD ${url} failed ${RETRIES} times: ${e.message ?? e}`); await sleep(1000 * 2 ** a, signal); }
+    finally { g.done(); }
+  }
   if (head.ok) {
     const n = Number(head.headers.get('x-linked-size') || head.headers.get('content-length'));
     if (Number.isFinite(n) && n > 0) size = n;
@@ -67,33 +98,102 @@ async function rangeReader(url, fetchFn, useCache) {
   // The file is cached in fixed 8 MB blocks (keys [url, begin, end]), so no single IndexedDB record is large and any
   // tensor range is served from whole blocks; a few recent blocks stay in memory for neighbouring tensors.
   const BLOCK = 8 << 20;
-  const recent = new Map();
-  const block = async (b) => {
-    if (recent.has(b)) return recent.get(b);
-    const begin = b * BLOCK, end = Math.min(begin + BLOCK, size ?? Infinity);
-    const key = [url, begin, end];
-    let bytes = db ? await idb(db, 'chunks', 'readonly', (s) => s.get(key)).then((v) => v && new Uint8Array(v)) : null;
-    if (!bytes) {
-      const res = await fetchFn(url, { headers: { Range: `bytes=${begin}-${end - 1}` } });
-      if (!res.ok) throw new Error(`GET ${url} bytes ${begin}-${end - 1}: HTTP ${res.status}`);
+  const recent = new Map(), pending = new Map();
+  const counted = new Set(); let loaded = 0; const partial = new Map();
+  const report = () => onBytes(loaded + [...partial.values()].reduce((a, b) => a + b, 0), size);
+  const got = (b, n) => { partial.delete(b); if (!counted.has(b)) { counted.add(b); loaded += n; } report(); };
+
+  // [begin, end) into dst at dst offset `at`, from one Range request; returns bytes written (may be short).
+  const fetchInto = async (begin, end, dst, at, b) => {
+    const g = guardedFetch(fetchFn, url, { headers: { Range: `bytes=${begin}-${end - 1}` } }, signal, STALL_MS);
+    try {
+      const res = await g.p;
+      if (!res.ok) { const e = new Error(`GET bytes ${begin}-${end - 1}: HTTP ${res.status}`); e.status = res.status; throw e; }
       if (size == null) { const m = /\/(\d+)$/.exec(res.headers.get('content-range') || ''); if (m) size = Number(m[1]); }
-      const buf = await res.arrayBuffer();
-      bytes = res.status === 206 ? new Uint8Array(buf) : new Uint8Array(buf, begin, Math.min(BLOCK, buf.byteLength - begin));
+      let skip = res.status === 206 ? 0 : begin;       // a 200 ignores the Range: skip to `begin`, stop at `end`
+      const want = end - begin; let n = 0;
+      if (!res.body) {                                   // no streams: whole body
+        const buf = new Uint8Array(await res.arrayBuffer()); const part = buf.subarray(skip, skip + want);
+        dst.set(part, at); return part.length;
+      }
+      const rd = res.body.getReader();
+      try {
+        while (n < want) {
+          let timer;
+          const stall = new Promise((_, rej) => { timer = setTimeout(() => rej(new Error(`no bytes for ${STALL_MS / 1000} s`)), STALL_MS); });
+          let r;
+          try { r = await Promise.race([rd.read(), stall]); } finally { clearTimeout(timer); }
+          if (r.done) break;
+          let v = r.value;
+          if (skip) { if (v.length <= skip) { skip -= v.length; continue; } v = v.subarray(skip); skip = 0; }
+          if (v.length > want - n) v = v.subarray(0, want - n);
+          dst.set(v, at + n); n += v.length;
+          partial.set(b, at + n); report();
+        }
+      } finally { rd.cancel().catch(() => {}); g.ac.abort(); }
+      return n;
+    } finally { g.done(); }
+  };
+
+  const download = async (b, begin, end) => {
+    const dst = new Uint8Array(end - begin); let have = 0, lastErr = null;
+    const target = () => (size != null ? Math.min(dst.length, size - begin) : dst.length);   // size may be learnt mid-way
+    for (let a = 0; a < RETRIES && have < target(); ) {
+      if (signal?.aborted) throw abortError(signal);
+      try {
+        const n = await fetchInto(begin + have, end, dst, have, b);
+        if (n > 0) { have += n; lastErr = null; a = 0; continue; }     // progress: resume, reset the retry budget
+        lastErr = new Error('empty body');
+      } catch (e) {
+        if (signal?.aborted) throw abortError(signal);
+        if (e.status === 416 || e.status === 404 || e.status === 403) throw new Error(`${url}: ${e.message}`);
+        lastErr = e;
+      }
+      a++;
+      if (a < RETRIES && have < target()) await sleep(Math.min(30000, 1000 * 2 ** (a - 1)), signal);
+    }
+    if (have < target()) throw new Error(`download of ${url} failed at byte ${begin + have} after ${RETRIES} attempts: ${lastErr?.message ?? lastErr}`);
+    return dst.subarray(0, target());
+  };
+
+  const load = async (b) => {
+    const begin = b * BLOCK, end = Math.min(begin + BLOCK, size ?? Infinity);
+    let bytes = db ? await idb(db, 'chunks', 'readonly', (s) => s.get([url, begin, end])).then((v) => v && new Uint8Array(v)) : null;
+    if (bytes && size != null && bytes.length !== Math.min(BLOCK, size - begin)) bytes = null;   // never trust a short cached block
+    if (!bytes) {
+      bytes = await download(b, begin, end === Infinity ? begin + BLOCK : end);
+      if (size != null && begin + bytes.length > size) bytes = bytes.subarray(0, size - begin);
       if (db) await idb(db, 'chunks', 'readwrite', (s) => s.put(bytes.slice().buffer, [url, begin, begin + bytes.length]));
     }
-    recent.set(b, bytes); if (recent.size > 4) recent.delete(recent.keys().next().value);
+    got(b, bytes.length);
     return bytes;
+  };
+  const block = (b) => {
+    if (recent.has(b)) return Promise.resolve(recent.get(b));
+    if (!pending.has(b)) pending.set(b, load(b).then((v) => { recent.set(b, v); if (recent.size > 4) recent.delete(recent.keys().next().value); return v; })
+      .finally(() => pending.delete(b)));
+    const p = pending.get(b);
+    // read ahead one block so the network stays busy while this one is uploaded
+    const nb = b + 1;
+    if (size != null && nb * BLOCK < size && !recent.has(nb) && !pending.has(nb)) {
+      pending.set(nb, load(nb).then((v) => { recent.set(nb, v); if (recent.size > 4) recent.delete(recent.keys().next().value); return v; })
+        .finally(() => pending.delete(nb)));
+      pending.get(nb).catch(() => {});                // surfaced when it is actually read
+    }
+    return p;
   };
   const read = async (offset, len) => {
     const out = new Uint8Array(len);
     for (let b = Math.floor(offset / BLOCK); b * BLOCK < offset + len; b++) {
       const bytes = await block(b), begin = b * BLOCK;
       const from = Math.max(offset, begin), to = Math.min(offset + len, begin + bytes.length);
+      if (size != null && bytes.length < Math.min(BLOCK, size - begin)) throw new Error(`short block ${b} of ${url}`);
       out.set(bytes.subarray(from - begin, to - begin), from - offset);
     }
     return out;
   };
   if (size == null) await block(0);     // learn the size from Content-Range
+  report();
   return { read, size: () => size };
 }
 
@@ -193,11 +293,16 @@ export class Lfm3ForCausalLM {
     await wasmReady;
     onProgress({ status: 'init', message: 'opening weights' });
     const fetchFn = options.fetch || globalThis.fetch.bind(globalThis);
-    const reader = await rangeReader(source, fetchFn, options.cache !== false);
+    const signal = options.signal;
+    if (signal?.aborted) throw abortError(signal);
+    // kind 'bytes': file bytes received (network or cache) as they arrive; kind 'tensors': bytes uploaded to the GPU
+    const onBytes = (loaded, total) => onProgress({ status: 'weights', kind: 'bytes', loaded, total, fraction: total ? loaded / total : null,
+                                                    message: `weights ${(loaded / 1e6).toFixed(0)} / ${((total ?? 0) / 1e6).toFixed(0)} MB` });
+    const reader = await rangeReader(source, fetchFn, options.cache !== false, { signal, onBytes });
     const t0 = performance.now();
-    const engine = await Engine.load((off, len) => reader.read(off, len), reader.size(), options.maxLength ?? 32768,
-      (done, total) => onProgress({ status: 'weights', kind: 'bytes', loaded: done, total, fraction: total ? done / total : null,
-                                    message: `weights ${(done / 1e6).toFixed(0)} / ${(total / 1e6).toFixed(0)} MB` }));
+    const engine = await Engine.load((off, len) => { if (signal?.aborted) return Promise.reject(abortError(signal)); return reader.read(off, len); },
+      reader.size(), options.maxLength ?? 32768,
+      (done, total) => onProgress({ status: 'weights', kind: 'tensors', loaded: done, total, fraction: total ? done / total : null }));
     onProgress({ status: 'ready', message: 'ready' });
     return new Lfm3ForCausalLM(engine, { load_ms: performance.now() - t0, file_bytes: reader.size() });
   }
