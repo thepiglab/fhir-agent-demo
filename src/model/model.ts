@@ -7,7 +7,7 @@ import './raf-shim.ts';
 import { Lfm3ForCausalLM } from '../../vendor/lfm3-webgpu-pi/Lfm3ForCausalLM.js';
 import type { ChatSession, LoadOptions, LoadProgress } from '../../vendor/lfm3-webgpu-pi/Lfm3ForCausalLM.js';
 import { MODEL, activeRuntime, contextTokens } from './config.ts';
-import { hubRepo, modelVersion } from './versions.ts';
+import { hubRepo, modelVersion, replaces } from './versions.ts';
 
 export { hubRepo, modelVersion };
 
@@ -141,11 +141,13 @@ export async function savedModels(): Promise<SavedModel[]> {
   });
 }
 
-/** Saved models that `url` replaces: other files or revisions from the same Hugging Face repo. */
+/**
+ * Saved models that `url` replaces: other versions or revisions of the same quantization from the same
+ * Hugging Face repo (v2 Q4_K_M for v3 Q4_K_M, an older pin of the same file). The picker's other
+ * quantizations (catalog.ts) live in the same repo but are kept: the visitor removes them one by one.
+ */
 export async function replacedBy(url: string): Promise<SavedModel[]> {
-  const repo = hubRepo(url);
-  const name = url.split('/').pop();
-  return (await savedModels()).filter((m) => m.url !== url && (repo ? hubRepo(m.url) === repo : m.file === name));
+  return (await savedModels()).filter((m) => replaces(url, m.url));
 }
 
 // Delete the models `url` replaces (an older version, an older pin, or the unpinned "main" URL),

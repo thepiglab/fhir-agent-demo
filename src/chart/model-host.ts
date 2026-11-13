@@ -3,9 +3,11 @@
 //
 // api.ts imports this module lazily (`await import('./model-host.ts')`) so the chart page and its
 // data do not wait for the WebGPU runtime; the model gate does the same.
-import { resolveSource, remoteSize, storedBytes, offload, load, pruneStale, replacedBy, latestOnHub, hubRepo, modelVersion } from '../model/model.ts';
+import { resolveSource, remoteSize, storedBytes, offload, load, pruneStale, replacedBy, latestOnHub, hubRepo, modelVersion, savedModels } from '../model/model.ts';
 import type { Model, SavedModel, SizeResult } from '../model/model.ts';
-import { MODEL_FACTS, MODEL_FILE, activeRuntime } from '../model/config.ts';
+import { MODEL_FACTS, MODEL_FILE, MODEL_OPTION, activeRuntime } from '../model/config.ts';
+import { MODEL_OPTIONS } from '../model/catalog.ts';
+import type { ModelOption } from '../model/catalog.ts';
 import type { ModelStatus } from '../app/state.ts';  // type only: keeps this module free of the app's state
 
 export type { ModelStatus };
@@ -106,6 +108,34 @@ export function latest(): Promise<{ version: number; file: string } | null> {
   const repo = hubRepo(source.url);
   hubPromise ??= repo ? latestOnHub(repo) : Promise.resolve(null);
   return hubPromise;
+}
+
+// ---------- the picker's options ----------
+/** A model the picker offers, with what this browser holds of it. */
+export interface OptionState {
+  option: ModelOption;
+  /** The URL its weights are fetched from and cached under. */
+  url: string;
+  /** Bytes of it stored in this browser. */
+  stored: number;
+  /** It is the model this page runs. */
+  current: boolean;
+}
+/** Every option, with its stored bytes (one pass over the cache). */
+export async function optionStates(): Promise<OptionState[]> {
+  const saved = new Map((await savedModels()).map((m) => [m.url, m.bytes]));
+  return MODEL_OPTIONS.map((option) => {
+    const url = resolveSource(option.spec).url;
+    const current = !overridden && option.id === MODEL_OPTION.id;
+    return { option, url, stored: saved.get(url) ?? 0, current };
+  });
+}
+/** Delete one option's weights from this browser (the running model is unloaded first). Returns bytes freed. */
+export async function removeOption(id: ModelOption['id']): Promise<number> {
+  const state = (await optionStates()).find((o) => o.option.id === id);
+  if (!state) return 0;
+  if (state.current) return removeModel();
+  return offload(state.url);
 }
 
 /**

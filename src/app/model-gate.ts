@@ -8,10 +8,13 @@ import { app, on, setModel } from './state.ts';
 import type { ModelStatus } from './state.ts';
 import { announce } from './dom.ts';
 import { MODEL_FILE } from '../model/config.ts';
+import { setChosenModelId } from '../model/catalog.ts';
+import type { ModelOptionId } from '../model/catalog.ts';
 import type { DeviceCheck } from '../chart/model-host.ts';
 import type { SavedModel } from '../model/model.ts';
 
 export type { DeviceCheck };
+export type OptionState = import('../chart/model-host.ts').OptionState;
 type Host = typeof import('../chart/model-host.ts');
 let hostPromise: Promise<Host> | null = null;
 let hostNow: Host | null = null;
@@ -53,6 +56,29 @@ export async function removeModel(): Promise<number> {
   return freed;
 }
 export const deviceChecks = (): Promise<DeviceCheck[]> => getHost().then((h) => h.deviceChecks());
+
+// ---------- the picker ----------
+/** The picker's options with what this browser holds of each. */
+export const optionStates = (): Promise<OptionState[]> => getHost().then((h) => h.optionStates());
+/** Delete one option's weights; returns bytes freed. */
+export async function removeOption(id: ModelOptionId, label: string): Promise<number> {
+  const h = await getHost();
+  const freed = await h.removeOption(id);
+  void refreshVersions(h);
+  announce(`Removed the ${label} model from this browser${freed ? `; ${fmtBytes(freed)} freed` : ''}.`);
+  return freed;
+}
+/**
+ * Run another option: save the choice and reload, so the runtime, harness and sampling all follow it
+ * (as the developer view's harness switch does). Its weights download only when asked, or load at once
+ * if this browser already has them. ?quant= is dropped from the URL so it does not override the choice.
+ */
+export function chooseModel(id: ModelOptionId): void {
+  setChosenModelId(id);
+  const url = new URL(location.href);
+  url.searchParams.delete('quant');
+  location.replace(url.href);
+}
 
 // ---------- versions ----------
 export interface Versions {

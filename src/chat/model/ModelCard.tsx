@@ -9,6 +9,7 @@ import { download, fmtSize, loadOrigin, lowMemory, modelBytes, preferLocal, prog
 import { useModel } from './useModel.ts';
 
 import { LocalFile, ProgressBar } from './parts.tsx';
+import { ModelPicker } from './ModelPicker.tsx';
 
 const linkClass = 'text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 rounded-sm';
 
@@ -46,6 +47,8 @@ export function ModelCard({ className }: { className?: string }) {
       const action = older ? `Update to ${name(current)}` : 'Download';
       if (lowMemory() !== null) body += ` This device reports ${lowMemory()} GB of memory; the model needs about 3 GB free, so it may not load.`;
       content = (
+        <div className="space-y-4">
+        {!older && <ModelPicker />}
         <LocalFile>
           {(open) => preferLocal ? (
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -59,6 +62,7 @@ export function ModelCard({ className }: { className?: string }) {
             </div>
           )}
         </LocalFile>
+        </div>
       );
       break;
     }

@@ -16,6 +16,7 @@ import {
 import type { DeviceCheck } from '../../app/model-gate.ts';
 import { useModel } from './useModel.ts';
 import { LocalFile, ProgressBar } from './parts.tsx';
+import { ModelPicker } from './ModelPicker.tsx';
 import { DotMatrix } from '../conversation/DotMatrix.tsx';
 
 function statusText(s: Status): { text: string; dot: string; pulse: boolean } {
@@ -50,7 +51,7 @@ export function ModelStatusButton() {
         </TooltipTrigger>
         <TooltipContent side="bottom">Model status and storage</TooltipContent>
       </Tooltip>
-      <PopoverContent align="end" sideOffset={8} className="w-[min(22rem,calc(100vw-1.5rem))] p-0">
+      <PopoverContent align="end" sideOffset={8} className="max-h-[min(42rem,calc(100dvh-5rem))] w-[min(24rem,calc(100vw-1.5rem))] overflow-y-auto p-0">
         <ModelDetails status={s} />
       </PopoverContent>
     </Popover>
@@ -165,6 +166,15 @@ function ModelDetails({ status: s }: { status: Status }) {
           <Button size="sm" variant="destructive" disabled={removing} onClick={() => void remove()}>Remove</Button>
         </div>
       )}
+
+      <Collapsible className="border-t">
+        <CollapsibleTrigger className="group flex w-full items-center gap-1.5 px-4 py-2.5 text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:bg-muted">
+          <ChevronRight className="size-3.5 transition-transform group-data-[state=open]:rotate-90" />Model size: 4-bit, 3-bit, 2-bit or ternary
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <ModelPicker className="px-4 pb-3" />
+        </CollapsibleContent>
+      </Collapsible>
 
       <Collapsible
         className="border-t"
