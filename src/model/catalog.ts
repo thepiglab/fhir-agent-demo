@@ -69,7 +69,7 @@ export const MODEL_OPTIONS: readonly ModelOption[] = [
     runtime: 'vendored', harness: 'Lc', layout: 'v0.2.3.4', sampling: SAMPLING,
     // 4-bit for now: on an M1 Max in Chromium the lowbit runtime reads prompts at about 150 tok/s, so a
     // tool result of a few thousand tokens costs tens of seconds a turn, and it decodes slower there too
-    // (105 vs 127 tok/s for 2-bit); quality is a tie (Lc 0.593 for 2-bit vs 0.586). Move this to 2-bit once
+    // (105 vs 127 tok/s for 2-bit); quality is a tie (Lc 0.591 for 2-bit vs 0.586). Move this to 2-bit once
     // the lowbit runtime's batched prefill lands and the Mac re-test confirms it.
     recommended: { reason: 'Fastest in the browser today; the smaller models match its accuracy but read long tool results more slowly.' },
     score: 0.586, quality: `${pct(0.586)} on held-out questions (full precision: ${pct(BF16_SCORE)})`,
@@ -91,8 +91,9 @@ export const MODEL_OPTIONS: readonly ModelOption[] = [
     spec: `${HF}@${V3_COMMIT}/LFM3-FHIR-demo-v3-2bit-Q2_K-QAD.gguf`,
     file: { sha256: '2e202365c52e52a70f401771dcabb1cfd2dc242641302334cb85cc81a618cdf5', bytes: 754_948_960 },
     runtime: 'lowbit', harness: 'Lc', layout: 'v0.2.3.4', sampling: SAMPLING,
-    scoreSource: 'Measured on the non-e4 sibling (823 MB): the same weights with a 6-bit embedding. This file (4-bit embedding) has no Lc eval of its own yet.',
-    score: 0.593, quality: `${pct(0.593)} on held-out questions (full precision: ${pct(BF16_SCORE)})`,
+    // Measured on this file: Lc held-out strict 0.591 on all 1,620 tasks (Δ −0.011 vs BF16, 95% CI [−0.028, +0.007],
+    // hard loops 0.3%).
+    score: 0.591, quality: `${pct(0.591)} on held-out questions (full precision: ${pct(BF16_SCORE)})`,
     memory: { bytes: 1_170_200_000, how: lowbitMemory('1,170.2', '1,354.7') },
     quantization: 'Q2_K mix (Q2_K-m4-fd3, 4-bit embedding), trained with quantization-aware distillation; runs on the lowbit WebGPU runtime with the weights packed in GPU memory',
   },
