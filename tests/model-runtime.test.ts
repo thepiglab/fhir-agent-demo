@@ -4,8 +4,8 @@ import { MODEL_RUNTIME, activeRuntime, isModelRuntime } from '../src/model/confi
 describe('model runtime switch', () => {
   afterEach(() => { vi.unstubAllGlobals(); });
 
-  it('defaults to the runtime of the default model (2-bit: lowbit)', () => {
-    expect(MODEL_RUNTIME).toBe('lowbit');
+  it('defaults to the runtime of the default model (4-bit: vendored)', () => {
+    expect(MODEL_RUNTIME).toBe('vendored');
     expect(activeRuntime()).toBe(MODEL_RUNTIME);
   });
 

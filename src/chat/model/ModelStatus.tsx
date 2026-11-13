@@ -16,7 +16,7 @@ import {
 import type { DeviceCheck } from '../../app/model-gate.ts';
 import { useModel } from './useModel.ts';
 import { LocalFile, ProgressBar } from './parts.tsx';
-import { ModelPicker } from './ModelPicker.tsx';
+import { ModelPicker, StorageManager } from './ModelPicker.tsx';
 import { DotMatrix } from '../conversation/DotMatrix.tsx';
 
 function statusText(s: Status): { text: string; dot: string; pulse: boolean } {
@@ -169,10 +169,19 @@ function ModelDetails({ status: s }: { status: Status }) {
 
       <Collapsible className="border-t">
         <CollapsibleTrigger className="group flex w-full items-center gap-1.5 px-4 py-2.5 text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:bg-muted">
-          <ChevronRight className="size-3.5 transition-transform group-data-[state=open]:rotate-90" />Model size: 4-bit, 3-bit, 2-bit or ternary
+          <ChevronRight className="size-3.5 transition-transform group-data-[state=open]:rotate-90" />Choose a model size
         </CollapsibleTrigger>
         <CollapsibleContent>
           <ModelPicker className="px-4 pb-3" />
+        </CollapsibleContent>
+      </Collapsible>
+
+      <Collapsible className="border-t">
+        <CollapsibleTrigger className="group flex w-full items-center gap-1.5 px-4 py-2.5 text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:bg-muted">
+          <ChevronRight className="size-3.5 transition-transform group-data-[state=open]:rotate-90" />Manage storage
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <StorageManager className="px-4 pb-3" />
         </CollapsibleContent>
       </Collapsible>
 

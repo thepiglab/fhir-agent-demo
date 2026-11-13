@@ -16,7 +16,6 @@ import { useModel } from './useModel.ts';
 export function ModelPicker({ className }: { className?: string }) {
   const s = useModel();
   const [states, setStates] = useState<OptionState[] | null>(null);
-  const [removing, setRemoving] = useState<string | null>(null);
   const refresh = () => void optionStates().then(setStates).catch(() => setStates([]));
   useEffect(refresh, [s.state]);
 
@@ -70,16 +69,7 @@ export function ModelPicker({ className }: { className?: string }) {
                 </div>
               </div>
               {x.stored > 0 && (
-                <div className="flex items-center gap-2 pl-9 pt-1 text-xs text-muted-foreground">
-                  <span className="mr-auto">Saved in this browser ({fmtBytes(x.stored)})</span>
-                  <Button
-                    size="xs" variant="ghost" className="text-muted-foreground" disabled={busy || removing !== null}
-                    aria-label={`Remove the ${o.bits} model from this browser`}
-                    onClick={() => { setRemoving(o.id); void removeOption(o.id, o.bits).finally(() => { setRemoving(null); refresh(); }); }}
-                  >
-                    <Trash2 />{removing === o.id ? 'Removing…' : 'Remove'}
-                  </Button>
-                </div>
+                <div className="pl-9 pt-1 text-xs text-muted-foreground">Saved in this browser ({fmtBytes(x.stored)})</div>
               )}
             </li>
           );
@@ -88,6 +78,64 @@ export function ModelPicker({ className }: { className?: string }) {
       <p className="text-xs text-muted-foreground">
         Memory is GPU memory while the model runs (on Macs, shared with the rest of the system); the browser needs some more on top. Choosing a model reloads the page.
       </p>
+    </div>
+  );
+}
+
+/**
+ * Manage storage: every model saved in this browser, with its size and a Remove that asks first and then
+ * says how much was freed. Removing the model in use unloads it.
+ */
+export function StorageManager({ className }: { className?: string }) {
+  const s = useModel();
+  const [states, setStates] = useState<OptionState[] | null>(null);
+  const [confirming, setConfirming] = useState<string | null>(null);
+  const [removing, setRemoving] = useState<string | null>(null);
+  const [done, setDone] = useState<string | null>(null);
+  const refresh = () => void optionStates().then(setStates).catch(() => setStates([]));
+  useEffect(refresh, [s.state]);
+  const busy = s.state === 'loading' || s.state === 'checking' || app.busy;
+  if (!states) return <p className={cn('text-xs text-muted-foreground', className)}>Checking this browser’s storage…</p>;
+  const saved = states.filter((x) => x.stored > 0);
+  const total = saved.reduce((a, x) => a + x.stored, 0);
+  return (
+    <div className={cn('space-y-2 text-xs', className)}>
+      {saved.length === 0
+        ? <p className="text-muted-foreground">No models are saved in this browser.</p>
+        : <p className="text-muted-foreground">{saved.length === 1 ? 'One model' : `${saved.length} models`} saved here, {fmtBytes(total)} in all.</p>}
+      <ul className="space-y-1">
+        {saved.map((x) => {
+          const v = optionView(x.option);
+          return (
+            <li key={x.option.id} className="flex min-h-8 items-center gap-2">
+              {confirming === x.option.id ? (
+                <>
+                  <span className="mr-auto">Remove {v.title} ({fmtBytes(x.stored)}){x.current ? ' and unload it' : ''}?</span>
+                  <Button size="xs" variant="ghost" onClick={() => setConfirming(null)}>Keep</Button>
+                  <Button size="xs" variant="destructive" disabled={removing !== null}
+                    onClick={() => {
+                      setRemoving(x.option.id);
+                      void removeOption(x.option.id, v.title)
+                        .then(() => setDone(`Removed ${v.title}: ${fmtBytes(x.stored)} freed.`))
+                        .finally(() => { setRemoving(null); setConfirming(null); refresh(); });
+                    }}>
+                    {removing === x.option.id ? 'Removing…' : 'Remove'}
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <span className="mr-auto"><span className="font-medium text-foreground">{v.title}</span> <span className="text-muted-foreground">{fmtBytes(x.stored)}{x.current ? ' · in use' : ''}</span></span>
+                  <Button size="xs" variant="ghost" className="text-muted-foreground" disabled={busy || removing !== null}
+                    aria-label={`Remove the ${v.title} model from this browser`} onClick={() => { setDone(null); setConfirming(x.option.id); }}>
+                    <Trash2 />Remove
+                  </Button>
+                </>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {done && <p role="status" className="text-muted-foreground">{done}</p>}
     </div>
   );
 }

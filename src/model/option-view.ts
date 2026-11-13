@@ -1,7 +1,6 @@
 // What the model pickers show for each option (catalog.ts), as plain text: the Chart assistant's picker
 // (React, src/chat/model/ModelPicker.tsx) and the landing page's (DOM, src/ui/model-page.ts) both render
 // from this, so the wording, badges and hover text are written once.
-import { MODEL_OPTIONS } from './catalog.ts';
 import type { ModelOption } from './catalog.ts';
 
 /** 1.1 GB, 755 MB. */
@@ -31,7 +30,7 @@ export interface OptionView {
   /** The quality line in brief, for compact rows: "59.3% on held-out questions*". */
   qualityShort: string;
   badges: OptionBadge[];
-  /** One short tag for compact rows, or null: "Recommended", "Smallest · experimental". */
+  /** One short tag for compact rows, or null: "Recommended" (experimental is said in the details only). */
   tag: { label: string; kind: OptionBadge['kind']; title?: string } | null;
   /** For a radio's accessible name: "2-bit (Q2_K), 755 MB download, recommended". */
   label: string;
@@ -55,7 +54,6 @@ export function optionView(o: ModelOption): OptionView {
     qualityShort: `${(100 * o.score).toFixed(1)}% on held-out questions${o.scoreSource ? '*' : ''}`,
     badges,
     tag: o.recommended ? { label: 'Recommended', kind: 'recommended', title: o.recommended.reason }
-      : o.experimental ? { label: smallest(o) ? 'Smallest · experimental' : 'Experimental', kind: 'experimental' }
       : null,
     label: `${o.bits} (${o.quant}), ${download} download${badges.map((b) => `, ${b.label.toLowerCase()}`).join('')}`,
   };
@@ -63,6 +61,3 @@ export function optionView(o: ModelOption): OptionView {
 
 /** The weights are all in this browser (the vendored runtime stores tensor ranges, a little under the file). */
 export const fullyStored = (o: ModelOption, stored: number): boolean => stored >= o.file.bytes * 0.98;
-
-/** The option with the smallest download. */
-const smallest = (o: ModelOption): boolean => MODEL_OPTIONS.every((x) => x.file.bytes >= o.file.bytes);

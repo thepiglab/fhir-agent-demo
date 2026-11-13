@@ -67,6 +67,10 @@ export const MODEL_OPTIONS: readonly ModelOption[] = [
     spec: `${HF}@${V3_COMMIT}/LFM3-FHIR-demo-v3-Q4_K_M.gguf`,
     file: { sha256: 'fc480a24f50fa2e6d14de1b8ad96c58f1baa3acb93e4a14d6ab6ccedd2a31297', bytes: 1_099_627_360 },
     runtime: 'vendored', harness: 'Lc', layout: 'v0.2.3.4', sampling: SAMPLING,
+    // Recommended and the default, the user's call after reviewing the live site (2026-11-13). On the same
+    // 3,328-token prompt on an M1 Max, 2-bit starts sooner (TTFT 3.7 s vs 4.3-4.5 s) but writes slower
+    // (~106 vs ~121 tok/s); accuracy is a tie (0.591 vs 0.586).
+    recommended: { reason: 'The standard choice: the most tested runtime and the fastest writing. The smaller sizes download less and need less GPU memory.' },
     score: 0.586, quality: `${pct(0.586)} on held-out questions (full precision: ${pct(BF16_SCORE)})`,
     memory: { bytes: 1_714_000_000, how: 'Peak WebGPU buffer bytes (1,714 MB; 1,570 MB after load) in Chrome on an Apple M1 Max, vendored runtime, the same-size SFT v0.7 Q4_K_M at the bench page\'s context' },
     quantization: 'llama.cpp Q4_K_M (stock tensor layout, which the vendored WebGPU runtime requires), decoded with repetition penalty 1.1',
@@ -86,10 +90,6 @@ export const MODEL_OPTIONS: readonly ModelOption[] = [
     spec: `${HF}@${V3_COMMIT}/LFM3-FHIR-demo-v3-2bit-Q2_K-QAD.gguf`,
     file: { sha256: '2e202365c52e52a70f401771dcabb1cfd2dc242641302334cb85cc81a618cdf5', bytes: 754_948_960 },
     runtime: 'lowbit', harness: 'Lc', layout: 'v0.2.3.4', sampling: SAMPLING,
-    // Recommended (and the default) since the lowbit runtime's Metal prefill (eeb5cc6). Same 3,328-token prompt,
-    // Chromium on an M1 Max, greedy: 2-bit TTFT 3.7 s (prefill ~905 tok/s), decode ~106 tok/s; 4-bit (vendored)
-    // TTFT 4.3-4.5 s, decode ~121 tok/s. Accuracy is a tie (0.591 vs 0.586) with ~31% less download and GPU memory.
-    recommended: { reason: 'Matches 4-bit’s accuracy with about a third less download and GPU memory, and starts answering sooner on long chart results; it writes about 12% slower.' },
     // Measured on this file: Lc held-out strict 0.591 on all 1,620 tasks (Δ −0.011 vs BF16, 95% CI [−0.028, +0.007],
     // hard loops 0.3%).
     score: 0.591, quality: `${pct(0.591)} on held-out questions (full precision: ${pct(BF16_SCORE)})`,

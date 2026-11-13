@@ -85,6 +85,23 @@ let probed: { found: Awaited<ReturnType<Host['probe']>>; remote: Awaited<ReturnT
 /** The model picker: the option chosen here, and the bytes this browser holds of each option. */
 let chosen: ModelOption = MODEL_OPTION;
 let savedBytes = new Map<ModelOptionId, number>();
+/** The saved model whose Remove is waiting for a second click. */
+let confirming: ModelOptionId | null = null;
+
+/** Delete one size's weights from this browser, then say how much was freed. */
+async function removeSaved(host: Host, o: ModelOption): Promise<void> {
+  const have = savedBytes.get(o.id) ?? 0;
+  confirming = null;
+  await host.removeOption(o.id).catch(() => 0);
+  const states = await host.optionStates().catch(() => []);
+  savedBytes = new Map(states.map((x) => [x.option.id, x.stored]));
+  if (o.id === MODEL_OPTION.id) { stored = savedBytes.get(o.id) ?? 0; }
+  renderModels(host);
+  renderCta(host);
+  const text = `Removed the ${o.bits} model from this browser: ${fmtSize(have)} freed.`;
+  note(text);
+  announce(text);
+}
 /** ?start=1: the visitor chose another model and asked to download it; this page now runs that model. */
 const autoStart = params.get('start') === '1';
 if (autoStart) { params.delete('start'); history.replaceState(null, '', location.pathname + (params.size ? `?${params}` : '') + location.hash); }
@@ -99,21 +116,38 @@ function renderModels(host: Host): void {
   const options = MODEL_OPTIONS.filter(choosable);
   if (host.overridden || probed?.found.state === 'unsupported' || options.length < 2) { box.hidden = true; return; }
   box.hidden = false;
-  // Each card: the name, the download and one tag. Memory, quality and runtime sit behind "Compare sizes".
+  // Each card: the name and one line, the download size or "Saved · Remove" (confirmed in place).
+  // "Recommended" sits on the card's top edge. Memory, quality and runtime are behind "Compare sizes".
   const cards = options.map((o) => {
     const v = optionView(o);
-    const saved = fullyStored(o, savedBytes.get(o.id) ?? 0);
+    const have = savedBytes.get(o.id) ?? 0;
+    const saved = fullyStored(o, have);
     const input = h('input', {
       type: 'radio', name: 'lp-model', value: o.id, class: 'sr-only', 'aria-label': v.label,
       'aria-describedby': `lp-model-${o.id}-more`,
       onchange: () => { chosen = o; setChosenModelId(o.id); renderModels(host); renderCta(host); },
     });
     input.checked = o.id === chosen.id;
+    // Buttons inside the label must not also select the card.
+    const act = (fn: () => void) => (e: Event) => { e.preventDefault(); e.stopPropagation(); fn(); };
+    let line: Child;
+    if (confirming === o.id) {
+      line = h('span', { class: 'lp-model-line confirm' },
+        `Remove ${fmtSize(have)}?`,
+        h('button', { type: 'button', class: 'lp-link danger', onclick: act(() => void removeSaved(host, o)) }, 'Remove'),
+        h('button', { type: 'button', class: 'lp-link', onclick: act(() => { confirming = null; renderModels(host); }) }, 'Keep'));
+    } else if (have > 0) {
+      line = h('span', { class: 'lp-model-line' },
+        h('span', { class: 'lp-model-saved' }, svg(ICON.check), saved ? 'Saved' : `${fmtSize(have)} saved`),
+        h('button', { type: 'button', class: 'lp-link', 'aria-label': `Remove the ${v.title} model from this browser`, onclick: act(() => { confirming = o.id; renderModels(host); }) }, 'Remove'));
+    } else {
+      line = h('span', { class: 'lp-model-line' }, v.download);
+    }
     return h('label', { class: 'lp-model' + (o.id === chosen.id ? ' on' : ''), title: `${v.memory} to run · ${v.quality}` },
       input,
+      v.tag ? h('span', { class: 'lp-model-tag', title: v.tag.title ?? null }, v.tag.label) : null,
       h('strong', { class: 'lp-model-name' }, v.title),
-      h('span', { class: 'lp-model-size' }, saved ? h('span', { class: 'lp-model-saved' }, svg(ICON.check), 'Saved') : v.download),
-      v.tag ? h('span', { class: 'lp-model-tag ' + v.tag.kind, title: v.tag.title ?? null }, v.tag.label) : null);
+      line);
   });
   const wasOpen = box.querySelector<HTMLDetailsElement>('.lp-models-more')?.open ?? false;
   const more = h('details', { class: 'lp-models-more' },
@@ -123,7 +157,8 @@ function renderModels(host: Host): void {
       return h('li', { id: `lp-model-${o.id}-more` },
         h('strong', null, v.title), ' ',
         h('span', { title: v.memoryHow }, `${v.memoryShort} to run`), ' · ',
-        h('span', { title: v.qualityNote ?? null }, v.qualityShort), ' · ', v.runtime);
+        h('span', { title: v.qualityNote ?? null }, v.qualityShort), ' · ', v.runtime,
+        o.experimental ? ' · experimental, below the quality bar' : null);
     })),
     options.some((o) => o.scoreSource) ? h('p', null, '* Measured on the same weights with a 6-bit embedding; these files use a 4-bit one.') : null,
     h('p', null, 'GPU memory is measured while the model runs; on a Mac it is shared with the rest of the system.'));
