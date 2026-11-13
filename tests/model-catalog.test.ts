@@ -30,8 +30,8 @@ describe('model picker catalog', () => {
 
   it('runs the default unless the URL or a saved choice names an option', () => {
     expect(selectedOption().id).toBe(DEFAULT_MODEL_ID);
-    // Placeholder pins are choosable only in the dev server (vitest runs with DEV true).
-    expect(uploaded(modelOption('q2'))).toBe(false);
+    for (const o of MODEL_OPTIONS) expect(uploaded(o)).toBe(true);
+    expect(new Set(MODEL_OPTIONS.map((o) => o.spec.split('@')[1]!.split('/')[0])).size).toBe(1);
     vi.stubGlobal('location', { search: '?quant=q2' });
     expect(selectedOption().id).toBe('q2');
     vi.stubGlobal('location', { search: '?quant=q9' });

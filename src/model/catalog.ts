@@ -9,11 +9,11 @@
 // Memory is GPU memory while the model runs at the demo's 16,384-token context. Each figure says how it was
 // measured; they are measured numbers, not estimates.
 //
-// HF_COMMIT_V3 is a placeholder for the Hugging Face commit of the v3 upload, which holds all four files
-// (staged on HPG in /blue/cai5731/wkieffer/fhir/demo/release-v0235-r32-s200-v3/, SHA256SUMS-all). All four
-// names carry "-v3-", so the version check sees one version; the picker chooses by file. An option
-// whose pin is still a placeholder is shown as "not uploaded yet" and cannot be chosen, except in the dev
-// server (where ?model= or a local models/ copy can stand in).
+// All four files are in one Hugging Face commit, V3_COMMIT (f631418), uploaded from the release staged on
+// HPG (release-v0235-r32-s200-v3, SHA256SUMS-all); paths, sizes and LFS sha256s checked against the Hub's
+// tree API. All four names carry "-v3-", so the version check sees one version; the picker chooses by file.
+// An option whose pin is a placeholder ("@HF_COMMIT_…") would show as "not uploaded yet" and could not be
+// chosen outside the dev server.
 import type { PromptLayout } from '../chart/prompt.ts';
 import type { Harness, ModelRuntime, SamplingPreset } from './config.ts';
 
@@ -50,6 +50,8 @@ export interface ModelOption {
 }
 
 const HF = 'mkieffer/LFM3-FHIR-demo-v1';
+/** The Hugging Face commit holding all four v3 files. */
+const V3_COMMIT = 'f6314185e3ef8f678c5042d08aeda1fbdb0fadd5';
 /** Full precision (BF16 on vLLM), the bar every option is compared with. */
 export const BF16_SCORE = 0.602;
 const SAMPLING: SamplingPreset = { temperature: 0.1, top_k: 50, seed: 42, repetition_penalty: 1.1 };
@@ -60,7 +62,7 @@ const B200 = 'GPU memory over idle in headless Chrome 157 (WebGPU) on an NVIDIA 
 export const MODEL_OPTIONS: readonly ModelOption[] = [
   {
     id: 'q4', bits: '4-bit', quant: 'Q4_K_M',
-    spec: `${HF}@HF_COMMIT_V3/LFM3-FHIR-demo-v3-Q4_K_M.gguf`,
+    spec: `${HF}@${V3_COMMIT}/LFM3-FHIR-demo-v3-Q4_K_M.gguf`,
     file: { sha256: 'fc480a24f50fa2e6d14de1b8ad96c58f1baa3acb93e4a14d6ab6ccedd2a31297', bytes: 1_099_627_360 },
     runtime: 'vendored', harness: 'Lc', layout: 'v0.2.3.4', sampling: SAMPLING,
     // 4-bit for now: on an M1 Max in Chromium the lowbit runtime reads prompts at about 150 tok/s, so a
@@ -74,7 +76,7 @@ export const MODEL_OPTIONS: readonly ModelOption[] = [
   },
   {
     id: 'q3', bits: '3-bit', quant: 'Q3_K',
-    spec: `${HF}@HF_COMMIT_V3/LFM3-FHIR-demo-v3-3bit-Q3_K-QAD.gguf`,
+    spec: `${HF}@${V3_COMMIT}/LFM3-FHIR-demo-v3-3bit-Q3_K-QAD.gguf`,
     file: { sha256: '35de540ae3c0746e73effdec9c9ff4e1244b5b4dc6275d729b25b6395771e2ec', bytes: 881_761_120 },
     runtime: 'lowbit', harness: 'Lc', layout: 'v0.2.3.4', sampling: SAMPLING,
     scoreSource: 'Measured on the non-e4 sibling (949 MB): the same weights with a 6-bit embedding. This file (4-bit embedding) has no Lc eval of its own yet.',
@@ -84,7 +86,7 @@ export const MODEL_OPTIONS: readonly ModelOption[] = [
   },
   {
     id: 'q2', bits: '2-bit', quant: 'Q2_K',
-    spec: `${HF}@HF_COMMIT_V3/LFM3-FHIR-demo-v3-2bit-Q2_K-QAD.gguf`,
+    spec: `${HF}@${V3_COMMIT}/LFM3-FHIR-demo-v3-2bit-Q2_K-QAD.gguf`,
     file: { sha256: '2e202365c52e52a70f401771dcabb1cfd2dc242641302334cb85cc81a618cdf5', bytes: 754_948_960 },
     runtime: 'lowbit', harness: 'Lc', layout: 'v0.2.3.4', sampling: SAMPLING,
     scoreSource: 'Measured on the non-e4 sibling (823 MB): the same weights with a 6-bit embedding. This file (4-bit embedding) has no Lc eval of its own yet.',
@@ -94,7 +96,7 @@ export const MODEL_OPTIONS: readonly ModelOption[] = [
   },
   {
     id: 'ternary', bits: 'Ternary', quant: 'Q2_0',
-    spec: `${HF}@HF_COMMIT_V3/LFM3-FHIR-demo-v3-ternary-Q2_0-QAD.gguf`,
+    spec: `${HF}@${V3_COMMIT}/LFM3-FHIR-demo-v3-ternary-Q2_0-QAD.gguf`,
     file: { sha256: '961eb8cf1a5d7227e8521b7b3822e724eabe05dc9042fa8d2527ed0e9a380e8a', bytes: 634_329_952 },
     runtime: 'lowbit', harness: 'Lc', layout: 'v0.2.3.4', sampling: SAMPLING,
     scoreSource: 'Measured on the non-e4 sibling (702 MB): the same weights with a 6-bit embedding. This file (4-bit embedding) has no Lc eval of its own yet.',

@@ -19,7 +19,7 @@ import type { ModelOption } from './catalog.ts';
 
 /** The option this page runs (the picker's choice, ?quant=, or DEFAULT_MODEL_ID). */
 export const MODEL_OPTION: ModelOption = selectedOption();
-// HF_COMMIT_V3 in the catalog is a placeholder for the upload's Hugging Face commit (all four files).
+// Pinned to the Hugging Face commit of the v3 upload (catalog.ts, V3_COMMIT).
 export const MODEL = MODEL_OPTION.spec;
 /** The pinned file, as Hugging Face reports it (X-Linked-ETag, X-Linked-Size). */
 export const MODEL_FILE = MODEL_OPTION.file;
