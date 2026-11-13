@@ -57,7 +57,9 @@ export const BF16_SCORE = 0.602;
 const SAMPLING: SamplingPreset = { temperature: 0.1, top_k: 50, seed: 42, repetition_penalty: 1.1 };
 const pct = (x: number): string => `${(100 * x).toFixed(1)}%`;
 
-const B200 = 'GPU memory over idle in headless Chrome 157 (WebGPU) on an NVIDIA B200, after loading and running a turn, lowbit runtime';
+/** The lowbit runtime's WebGPU buffers (weights, KV cache, scratch) for this file, measured in Chrome on an NVIDIA B200. */
+const lowbitMemory = (at16k: string, at24k: string) =>
+  `WebGPU buffers the lowbit runtime allocates for this file (weights, KV cache for the 16,384-token context, scratch): ${at16k} MB, ${at24k} MB with Long charts (24,576 tokens). Measured in Chrome on an NVIDIA B200 (createBuffer bytes); the KV cache is 22.5 KB per token`;
 
 export const MODEL_OPTIONS: readonly ModelOption[] = [
   {
@@ -81,7 +83,7 @@ export const MODEL_OPTIONS: readonly ModelOption[] = [
     runtime: 'lowbit', harness: 'Lc', layout: 'v0.2.3.4', sampling: SAMPLING,
     scoreSource: 'Measured on the non-e4 sibling (949 MB): the same weights with a 6-bit embedding. This file (4-bit embedding) has no Lc eval of its own yet.',
     score: 0.596, quality: `${pct(0.596)} on held-out questions (full precision: ${pct(BF16_SCORE)})`,
-    memory: { bytes: 1_430_000_000, how: B200 },
+    memory: { bytes: 1_300_000_000, how: lowbitMemory('1,300.0', '1,484.5') },
     quantization: 'Q3_K mix (Q3_K-m4-fd4, 4-bit embedding), trained with quantization-aware distillation; runs on the lowbit WebGPU runtime with the weights packed in GPU memory',
   },
   {
@@ -91,7 +93,7 @@ export const MODEL_OPTIONS: readonly ModelOption[] = [
     runtime: 'lowbit', harness: 'Lc', layout: 'v0.2.3.4', sampling: SAMPLING,
     scoreSource: 'Measured on the non-e4 sibling (823 MB): the same weights with a 6-bit embedding. This file (4-bit embedding) has no Lc eval of its own yet.',
     score: 0.593, quality: `${pct(0.593)} on held-out questions (full precision: ${pct(BF16_SCORE)})`,
-    memory: { bytes: 1_300_000_000, how: `${B200}. On an Apple M1 Max the engine's GPU buffers were 1.03 GB` },
+    memory: { bytes: 1_170_200_000, how: lowbitMemory('1,170.2', '1,354.7') },
     quantization: 'Q2_K mix (Q2_K-m4-fd3, 4-bit embedding), trained with quantization-aware distillation; runs on the lowbit WebGPU runtime with the weights packed in GPU memory',
   },
   {
@@ -101,7 +103,7 @@ export const MODEL_OPTIONS: readonly ModelOption[] = [
     runtime: 'lowbit', harness: 'Lc', layout: 'v0.2.3.4', sampling: SAMPLING,
     scoreSource: 'Measured on the non-e4 sibling (702 MB): the same weights with a 6-bit embedding. This file (4-bit embedding) has no Lc eval of its own yet.',
     score: 0.534, quality: `Experimental, the smallest: ${pct(0.534)} on held-out questions, below the demo's quality bar`,
-    memory: { bytes: 1_170_000_000, how: B200 },
+    memory: { bytes: 1_046_600_000, how: lowbitMemory('1,046.6', '1,231.2') },
     experimental: true,
     quantization: 'Ternary Q2_0 (4-bit embedding), trained with quantization-aware distillation; runs on the lowbit WebGPU runtime with the weights packed in GPU memory',
   },

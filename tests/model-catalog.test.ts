@@ -61,7 +61,7 @@ describe('picker view (shared by the landing page and the Chart assistant)', () 
     expect(q4.qualityNote).toBeNull();
     const q2 = optionView(modelOption('q2'));
     expect(q2.download).toBe('755 MB');
-    expect(q2.memoryShort).toBe('1.3 GB GPU memory');
+    expect(q2.memoryShort).toBe('1.2 GB GPU memory');
     expect(q2.qualityShort).toBe('59.3% on held-out questions*');
     expect(q2.qualityNote).toMatch(/non-e4 sibling/);
     expect(optionView(modelOption('ternary')).badges.map((b) => b.label)).toEqual(['Experimental']);
