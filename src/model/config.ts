@@ -5,18 +5,17 @@
 // as "models/file.gguf" loads from this site instead: the dev and preview servers serve the
 // git-ignored models/ folder (vite.config.ts); a deployed site has no such folder.
 // The page's ?model=<path or owner/repo/file> overrides it, e.g. for local testing.
-// SFT v0.7 L (LFM3-FHIR-demo-v2-Q4_K_M.gguf, sha256 below), uploaded next to v1's file in the same
-// repo and pinned to that upload's Hugging Face commit. The "-v<N>" in the file name is the model's
+// v3: LoRA RL r32 step 200 on SFT v0.7-Lc (LFM3-FHIR-demo-v3-Q4_K_M.gguf, sha256 below), uploaded next
+// to v1's and v2's files in the same repo and pinned to that upload's Hugging Face commit. The "-v<N>" in the file name is the model's
 // version: the page compares it with what this browser has saved and with the newest file in the
-// repo (src/model/model.ts, savedModels and latestOnHub). v0.7 tied SFT v0.6.1 L on the 36 held-out
-// questions at each model's own prompt layout and eval sampling, 14/36 each, and is far ahead on
-// the v0.2.3.x prompts the demo now uses (docs/research/webgpu-sampler.md in fhir-env).
+// repo (src/model/model.ts, savedModels and latestOnHub). It runs in the Lc harness (MODEL_HARNESS below).
 import { isPromptLayout } from '../chart/prompt.ts';
 import type { PromptLayout } from '../chart/prompt.ts';
 
-export const MODEL = 'mkieffer/LFM3-FHIR-demo-v1@d6c2dc59092969aede3650167fb899632e719342/LFM3-FHIR-demo-v2-Q4_K_M.gguf';
+// HF_COMMIT_V3 is a placeholder: replace it with the 40-hex Hugging Face commit of the v3 upload.
+export const MODEL = 'mkieffer/LFM3-FHIR-demo-v1@HF_COMMIT_V3/LFM3-FHIR-demo-v3-Q4_K_M.gguf';
 /** The pinned file, as Hugging Face reports it (X-Linked-ETag, X-Linked-Size). */
-export const MODEL_FILE = { sha256: 'c2c740c943310ba3cf5d2a442b2de7002dc1daa88cc5ce15369679f549a3a781', bytes: 1_099_627_360 };
+export const MODEL_FILE = { sha256: 'fc480a24f50fa2e6d14de1b8ad96c58f1baa3acb93e4a14d6ab6ccedd2a31297', bytes: 1_099_627_360 };
 /**
  * The WebGPU runtime that runs MODEL. Change it together with MODEL.
  *   'vendored'  vendor/lfm3-webgpu-pi: the webml-community runtime, patched. Q4_K_M/Q6_K GGUFs in the stock
@@ -58,11 +57,11 @@ export function activePromptLayout(): PromptLayout {
 
 // Shown on the page next to the model. Facts about the weights MODEL points at.
 export const MODEL_FACTS = {
-  name: 'LFM3 1.7B EHR agent (SFT v0.7)',
+  name: 'LFM3 1.7B EHR agent (RL v3)',
   base: 'LiquidAI/LFM3-1.7B (LFM Open License)',
-  training: 'Supervised fine-tune (SFT v0.7, Muse Glimmer 30B traces on natural-track v0.2.3.3) of LFM3 1.7B to search and update FHIR records with one tool, fhir_request, and cite the records it used',
-  quantization: 'llama.cpp Q4_K_M (stock tensor layout, which the WebGPU runtime requires)',
-  result: 'Natural-prompt benchmark v0.2.3.4 (strict, BF16): 57.2% held-out, 59.7% dev.',
+  training: 'Reinforcement learning (LoRA r32, step 200) on SFT v0.7-Lc, the supervised fine-tune of LFM3 1.7B to search and update FHIR records with one tool, fhir_request, and cite the records it used, in the Lc harness (compact search results)',
+  quantization: 'llama.cpp Q4_K_M (stock tensor layout, which the WebGPU runtime requires), decoded with repetition penalty 1.1',
+  result: 'Lc held-out (strict): 60.2% BF16 on vLLM; Q4_K_M 58.6% vs 59.8% llama.cpp BF16, both at repetition penalty 1.1.',
 }
 
 export const CONTEXT_TOKENS = 16384;  // Pillar 6 budget: an L episode fits in 16K tokens
@@ -80,7 +79,7 @@ export const CONTEXT_TOKENS = 16384;  // Pillar 6 budget: an L episode fits in 1
 // Switch to 'X16' together with MODEL when the v0.6.1-X16 GGUF is staged. ?harness=L|X16 in the
 // page URL overrides it (for testing; L stays as the fallback). ?harness=X16v2 and ?harness=Lc likewise.
 export type Harness = 'L' | 'X16' | 'X16v2' | 'Lc';
-export const MODEL_HARNESS: Harness = 'L';
+export const MODEL_HARNESS: Harness = 'Lc';
 const HARNESS_KEY = 'fhir-demo-harness';
 export const isHarness = (v: unknown): v is Harness => v === 'X16' || v === 'X16v2' || v === 'L' || v === 'Lc';
 const developerView = (): boolean => {

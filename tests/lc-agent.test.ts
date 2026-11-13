@@ -59,11 +59,14 @@ async function run(harness: string, patient: string, question: string, calls: Ca
 
 describe('?harness=Lc', () => {
   it('selects Lc from the page URL', async () => {
-    const { activeHarness } = await import('../src/model/config.ts');
+    const { activeHarness, MODEL_HARNESS } = await import('../src/model/config.ts');
     vi.stubGlobal('location', new URL(BASE + 'chart.html?harness=Lc'));
     expect(activeHarness()).toBe('Lc');
+    vi.stubGlobal('location', new URL(BASE + 'chart.html?harness=X16'));
+    expect(activeHarness()).toBe('X16');
+    // An unknown value (the match is case-sensitive) falls back to the model's own harness.
     vi.stubGlobal('location', new URL(BASE + 'chart.html?harness=lc'));
-    expect(activeHarness()).not.toBe('Lc');
+    expect(activeHarness()).toBe(MODEL_HARNESS);
     vi.unstubAllGlobals();
   });
 });
