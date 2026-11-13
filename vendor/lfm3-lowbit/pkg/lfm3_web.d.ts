@@ -20,8 +20,9 @@ export class Engine {
     /**
      * Stream the GGUF through `fetch_range(offset, len) -> Promise<Uint8Array>` onto the GPU.
      * `on_progress(done_bytes, total_bytes)` is called after every tensor.
+     * `prefill_kernel`: a kernel name from an earlier load's `prefill_kernel()` on this GPU, to skip tuning.
      */
-    static load(fetch_range: Function, file_len: number, max_ctx: number, on_progress: Function): Promise<Engine>;
+    static load(fetch_range: Function, file_len: number, max_ctx: number, on_progress: Function, prefill_kernel?: string | null): Promise<Engine>;
     max_ctx(): number;
     /**
      * a GGUF metadata value as JSON-ish text (e.g. "tokenizer.chat_template")
@@ -35,6 +36,10 @@ export class Engine {
      * Parse a whole reply into {reasoning, content, tool_calls: [{name, arguments, errors?}], errors} (JSON).
      */
     parse_reply(text: string, tools_json?: string | null): string;
+    /**
+     * the prefill matmul kernel `load` picked for this GPU: "rows" or "tile"
+     */
+    prefill_kernel(): string;
     /**
      * Render the GGUF's chat template (messages and tools as JSON text), with the generation prompt.
      */
@@ -80,11 +85,12 @@ export interface InitOutput {
     readonly engine_decode: (a: number, b: number, c: number, d: number) => [number, number];
     readonly engine_encode: (a: number, b: number, c: number) => [number, number];
     readonly engine_generate: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: any) => any;
-    readonly engine_load: (a: any, b: number, c: number, d: any) => any;
+    readonly engine_load: (a: any, b: number, c: number, d: any, e: number, f: number) => any;
     readonly engine_max_ctx: (a: number) => number;
     readonly engine_meta_str: (a: number, b: number, c: number) => [number, number];
     readonly engine_new_stream: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number];
     readonly engine_parse_reply: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
+    readonly engine_prefill_kernel: (a: number) => [number, number];
     readonly engine_render_chat: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number, number];
     readonly engine_reset: (a: number) => void;
     readonly engine_seq_len: (a: number) => number;

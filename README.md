@@ -29,9 +29,9 @@ bun run typecheck               # strict TypeScript check (or: npm run typecheck
 
    | Option | Download | GPU memory | Quality | Runtime |
    |---|---|---|---|---|
-   | 4-bit Q4_K_M (Recommended, the default) | 1.1 GB | about 1.7 GB | 58.6% | standard (vendored) |
+   | 4-bit Q4_K_M | 1.1 GB | about 1.7 GB | 58.6% | standard (vendored) |
    | 3-bit Q3_K | 882 MB | about 1.3 GB | 59.6%* | low-bit |
-   | 2-bit Q2_K | 755 MB | about 1.2 GB | 59.1% | low-bit |
+   | 2-bit Q2_K (Recommended, the default) | 755 MB | about 1.2 GB | 59.1% | low-bit |
    | Ternary Q2_0 (experimental) | 634 MB | about 1.0 GB | 53.4%* | low-bit |
 
    \* 3-bit and ternary: measured on the same weights with a 6-bit embedding (these files have a 4-bit one).

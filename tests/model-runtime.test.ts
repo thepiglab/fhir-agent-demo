@@ -4,9 +4,9 @@ import { MODEL_RUNTIME, activeRuntime, isModelRuntime } from '../src/model/confi
 describe('model runtime switch', () => {
   afterEach(() => { vi.unstubAllGlobals(); });
 
-  it('defaults to the vendored runtime', () => {
-    expect(MODEL_RUNTIME).toBe('vendored');
-    expect(activeRuntime()).toBe('vendored');
+  it('defaults to the runtime of the default model (2-bit: lowbit)', () => {
+    expect(MODEL_RUNTIME).toBe('lowbit');
+    expect(activeRuntime()).toBe(MODEL_RUNTIME);
   });
 
   it('takes ?runtime= from the page URL, and ignores anything else', () => {

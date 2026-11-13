@@ -22,9 +22,9 @@ describe('model picker catalog', () => {
     expect(modelOption('ternary').experimental).toBe(true);
   });
 
-  it('recommends exactly one option, 4-bit for now, and defaults to it', () => {
-    expect(MODEL_OPTIONS.filter((o) => o.recommended).map((o) => o.id)).toEqual(['q4']);
-    expect(RECOMMENDED.recommended!.reason).toMatch(/^Fastest in the browser today/);
+  it('recommends exactly one option, 2-bit, and defaults to it', () => {
+    expect(MODEL_OPTIONS.filter((o) => o.recommended).map((o) => o.id)).toEqual(['q2']);
+    expect(RECOMMENDED.recommended!.reason).toMatch(/^Matches 4-bit/);
     expect(DEFAULT_MODEL_ID).toBe(RECOMMENDED.id);
   });
 
@@ -57,7 +57,7 @@ describe('picker view (shared by the landing page and the Chart assistant)', () 
   it('labels sizes, memory, badges and the sibling-score note', () => {
     const q4 = optionView(modelOption('q4'));
     expect(q4.download).toBe('1.1 GB');
-    expect(q4.badges.map((b) => b.label)).toEqual(['Recommended']);
+    expect(q4.badges).toEqual([]);
     expect(q4.qualityNote).toBeNull();
     const q2 = optionView(modelOption('q2'));
     expect(q2.download).toBe('755 MB');
@@ -67,7 +67,7 @@ describe('picker view (shared by the landing page and the Chart assistant)', () 
     expect(optionView(modelOption('q3')).qualityNote).toMatch(/non-e4 sibling/);
     expect(optionView(modelOption('ternary')).qualityNote).toMatch(/non-e4 sibling/);
     expect(optionView(modelOption('ternary')).badges.map((b) => b.label)).toEqual(['Experimental']);
-    expect(q2.label).toBe('2-bit (Q2_K), 755 MB download');
+    expect(q2.label).toBe('2-bit (Q2_K), 755 MB download, recommended');
   });
   it('counts a model as saved once (nearly) all of it is stored', () => {
     expect(fullyStored(modelOption('q4'), 1_091_380_480)).toBe(true);   // the vendored runtime's tensor ranges

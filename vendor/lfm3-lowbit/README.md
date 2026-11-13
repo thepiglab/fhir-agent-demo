@@ -11,10 +11,16 @@ This runtime is used when `MODEL_RUNTIME` (src/model/config.ts) is `'lowbit'`, o
 - Build: `lowbit/build-web.sh` on an HPG node. It compiles `cargo build --release --target wasm32-unknown-unknown -p lfm3-web`, then runs `wasm-bindgen --target web --out-dir web/js/pkg`.
 - To update: copy `web/js/lfm3.js` and `web/js/pkg/` here, then note the commit below.
 
-Vendored from: fhir-env `claude/lowbit-runtime` @ 6aa6376. This is the download-stall fix: bounded range requests with retry and resume, byte progress, and abort via `options.signal`. Its wasm is the 58d7203 build, which also has the faster prefill. It was tested in headless Chrome on a B200 against a fault-injecting Range server. sha256:
-- `lfm3.js` 6c1fe8cafd39382a5635e59db62ea3ca1f153c02db8fd2a2c3f5633c78a564d9
-- `pkg/lfm3_web.js` 7f37b8b3908edcb6a55956843e3630809e5caf42757a80700a8e8ce29f27e3e5
-- `pkg/lfm3_web_bg.wasm` f2e07df33b776d115e1fc8e1d8f25ccebda29c772096d6e33c6c367894da0431
+Vendored from: fhir-env `claude/lowbit-runtime` @ eeb5cc6. Changes since 6aa6376:
+- **Prefill kernel:** picked per GPU at load. On Apple it is `nat64`, a natural-layout tile GEMM; under Dawn on NVIDIA, `tile32x1`; otherwise `rows`.
+- **Kernel memory:** the chosen kernel is remembered in localStorage (`lfm3-prefill-kernel:…`), so later loads skip the roughly 1 s of tuning.
+- **Embedding:** split into bindings of 128 MiB or less, so default WebGPU limits are enough.
+- **Loader:** the 6aa6376 loader, unchanged.
+
+60a4e24, the build in between, gave wrong output on Apple and was not vendored. sha256:
+- `lfm3.js` 0410962f706ec593625d4c1d6a746e29784ef8649dc15b4a966499153f2450b4
+- `pkg/lfm3_web.js` b2efc314076fcaeebd63350da1b51cec49b3ee6fad070905863befa55509a8b4
+- `pkg/lfm3_web_bg.wasm` 69ede454dbd65afa7c79524cdecdace7aaf78f5f0c3749b6db9d84f7ed32f4ac
 
 Keep `pkg/` next to `lfm3.js`. `init()` resolves the .wasm from `pkg/lfm3_web.js`'s own URL, and Vite emits it as an asset. Pass `wasmUrl` to `from_pretrained` only if the .wasm moves.
 

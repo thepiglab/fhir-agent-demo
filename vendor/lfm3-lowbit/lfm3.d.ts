@@ -10,7 +10,7 @@ export class Lfm3ForCausalLM {
   /** `wasmUrl` overrides where the engine's .wasm is fetched from (default: next to pkg/lfm3_web.js). */
   static from_pretrained(source: string, options?: LoadOptions & { wasmUrl?: string | URL }): Promise<Lfm3ForCausalLM>;
   create_session(): ChatSession;
-  deviceInfo(): { adapter: unknown; vram_bytes: number; runtime: 'lfm3-lowbit'; load_ms: number; file_bytes: number | null };
+  deviceInfo(): { adapter: unknown; vram_bytes: number; runtime: 'lfm3-lowbit'; load_ms: number; file_bytes: number | null; prefill_kernel?: string };
   dispose(): Promise<void>;
 }
 export default Lfm3ForCausalLM;

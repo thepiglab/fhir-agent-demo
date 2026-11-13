@@ -284,6 +284,15 @@ class ChatSession {
   }
 }
 
+// localStorage key for the tuned prefill kernel: this runtime build x this GPU
+const RUNTIME_TAG = 'lfm3-lowbit-2';
+async function kernelKey() {
+  try {
+    const a = await navigator.gpu?.requestAdapter(); const i = a?.info;
+    return i ? `lfm3-prefill-kernel:${RUNTIME_TAG}:${i.vendor}/${i.architecture}/${i.device}/${i.description}` : null;
+  } catch { return null; }
+}
+
 export class Lfm3ForCausalLM {
   constructor(engine, info) { this.engine = engine; this.info = info; this.eos = engine.token_id('<|im_end|>'); }
 
@@ -300,14 +309,19 @@ export class Lfm3ForCausalLM {
                                                     message: `weights ${(loaded / 1e6).toFixed(0)} / ${((total ?? 0) / 1e6).toFixed(0)} MB` });
     const reader = await rangeReader(source, fetchFn, options.cache !== false, { signal, onBytes });
     const t0 = performance.now();
+    // the prefill kernel tuned on an earlier load on this GPU (tuning times a pass of each candidate)
+    const kkey = await kernelKey();
+    let hint = null; try { hint = kkey && localStorage.getItem(kkey); } catch {}
     const engine = await Engine.load((off, len) => { if (signal?.aborted) return Promise.reject(abortError(signal)); return reader.read(off, len); },
       reader.size(), options.maxLength ?? 32768,
-      (done, total) => onProgress({ status: 'weights', kind: 'tensors', loaded: done, total, fraction: total ? done / total : null }));
+      (done, total) => onProgress({ status: 'weights', kind: 'tensors', loaded: done, total, fraction: total ? done / total : null }),
+      hint || undefined);
+    try { if (kkey) localStorage.setItem(kkey, engine.prefill_kernel()); } catch {}
     onProgress({ status: 'ready', message: 'ready' });
     return new Lfm3ForCausalLM(engine, { load_ms: performance.now() - t0, file_bytes: reader.size() });
   }
   create_session() { return new ChatSession(this); }
-  deviceInfo() { return { adapter: this.engine.adapter(), vram_bytes: this.engine.vram_bytes(), runtime: 'lfm3-lowbit', ...this.info }; }
+  deviceInfo() { return { adapter: this.engine.adapter(), vram_bytes: this.engine.vram_bytes(), prefill_kernel: this.engine.prefill_kernel?.(), runtime: 'lfm3-lowbit', ...this.info }; }
   async dispose() { this.engine.free?.(); }
 }
 export default Lfm3ForCausalLM;

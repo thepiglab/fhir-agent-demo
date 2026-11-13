@@ -96,14 +96,20 @@ export class Engine {
     /**
      * Stream the GGUF through `fetch_range(offset, len) -> Promise<Uint8Array>` onto the GPU.
      * `on_progress(done_bytes, total_bytes)` is called after every tensor.
+     * `prefill_kernel`: a kernel name from an earlier load's `prefill_kernel()` on this GPU, to skip tuning.
      * @param {Function} fetch_range
      * @param {number} file_len
      * @param {number} max_ctx
      * @param {Function} on_progress
+     * @param {string | null} [prefill_kernel]
      * @returns {Promise<Engine>}
      */
-    static load(fetch_range, file_len, max_ctx, on_progress) {
-        const ret = wasm.engine_load(fetch_range, file_len, max_ctx, on_progress);
+    static load(fetch_range, file_len, max_ctx, on_progress, prefill_kernel) {
+        const val2 = +file_len;
+        const val3 = +max_ctx;
+        var ptr0 = isLikeNone(prefill_kernel) ? 0 : passStringToWasm0(prefill_kernel, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len0 = WASM_VECTOR_LEN;
+        const ret = wasm.engine_load(fetch_range, val2, val3, on_progress, ptr0, len0);
         return ret;
     }
     /**
@@ -188,6 +194,22 @@ export class Engine {
             return getStringFromWasm0(ptr3, len3);
         } finally {
             wasm.__wbindgen_free(deferred4_0, deferred4_1, 1);
+        }
+    }
+    /**
+     * the prefill matmul kernel `load` picked for this GPU: "rows" or "tile"
+     * @returns {string}
+     */
+    prefill_kernel() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.engine_prefill_kernel(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
         }
     }
     /**
@@ -498,6 +520,10 @@ function __wbg_get_imports() {
             return ret;
         },
         __wbg_limits_0c0185da58c966d2: function(arg0) {
+            const ret = arg0.limits;
+            return ret;
+        },
+        __wbg_limits_41f29f501b5d1881: function(arg0) {
             const ret = arg0.limits;
             return ret;
         },
@@ -854,12 +880,12 @@ function __wbg_get_imports() {
             arg0.writeBuffer(arg1, arg2, arg3, arg4, arg5);
         }, arguments); },
         __wbindgen_generic_0000000000000001: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 193, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 192, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen_2514664e3b2c9a7c___convert__closures_____invoke___wasm_bindgen_2514664e3b2c9a7c___JsValue______true_);
             return ret;
         },
         __wbindgen_generic_0000000000000002: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 225, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 224, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen_2514664e3b2c9a7c___convert__closures_____invoke___wasm_bindgen_2514664e3b2c9a7c___JsValue__core_d941ad8722425d2e___result__Result_____wasm_bindgen_2514664e3b2c9a7c___JsError___true_);
             return ret;
         },
