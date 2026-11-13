@@ -257,7 +257,9 @@ async function start(host: Host): Promise<void> {
   } catch (error) {
     off();
     fill(cta(), failureBlock('The model didn’t load: ' + errorText(error), () => void start(host)));
-    note('Nothing was sent anywhere. If it keeps failing, check that this browser supports WebGPU (Chrome or Edge 113+, Safari 26).');
+    note(error instanceof Error && error.name === 'StallError'
+      ? 'Try again picks up where it stopped.'
+      : 'Nothing was sent anywhere. If it keeps failing, check that this browser supports WebGPU (Chrome or Edge 113+, Safari 26).');
   }
 }
 

@@ -196,7 +196,11 @@ function begin(file: File | null): Promise<Model> {
     touch();
     if (current) { await current.dispose(); current = null; }
     if (file) origin = { from: 'file', fileName: file.name };
-    else origin = { from: (await storedNow()) > 0 ? 'cache' : 'network' };
+    else {
+      // From this browser only when (nearly) all of it is stored; a partial download resumes over the network.
+      const have = await storedNow();
+      origin = { from: have > 0 && (expectedBytes === null || have >= expectedBytes * 0.98) ? 'cache' : 'network' };
+    }
     return load({
       url: source.url,
       file,
