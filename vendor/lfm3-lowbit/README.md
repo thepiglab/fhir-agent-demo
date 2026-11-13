@@ -11,16 +11,15 @@ This runtime is used when `MODEL_RUNTIME` (src/model/config.ts) is `'lowbit'`, o
 - Build: `lowbit/build-web.sh` on an HPG node. It compiles `cargo build --release --target wasm32-unknown-unknown -p lfm3-web`, then runs `wasm-bindgen --target web --out-dir web/js/pkg`.
 - To update: copy `web/js/lfm3.js` and `web/js/pkg/` here, then note the commit below.
 
-Vendored from: fhir-env `claude/lowbit-runtime` @ eeb5cc6. Changes since 6aa6376:
-- **Prefill kernel:** picked per GPU at load. On Apple it is `nat64`, a natural-layout tile GEMM; under Dawn on NVIDIA, `tile32x1`; otherwise `rows`.
-- **Kernel memory:** the chosen kernel is remembered in localStorage (`lfm3-prefill-kernel:…`), so later loads skip the roughly 1 s of tuning.
-- **Embedding:** split into bindings of 128 MiB or less, so default WebGPU limits are enough.
-- **Loader:** the 6aa6376 loader, unchanged.
+Vendored from: fhir-env `claude/lowbit-runtime` @ 43ef427.
+- **Bug fix:** the tiled prefill kernels stage scalars. eeb5cc6 and 60a4e24 wrote vec4 components from four threads, which races on Metal (and possibly other GPUs) and gave garbage output wherever the tiled kernel was picked.
+- **Self-check at load:** a prefill kernel is used only if its logits on a fixed prompt match the decode path. That includes a pick remembered in localStorage (key `lfm3-prefill-kernel:lfm3-lowbit-3:…`). If no kernel passes, the load fails with "self-check failed" rather than generating garbage.
+- **Unchanged from eeb5cc6:** the per-GPU kernel pick (`nat64` on Apple), the embedding split (default WebGPU limits are enough) and the 6aa6376 loader.
 
-60a4e24, the build in between, gave wrong output on Apple and was not vendored. sha256:
-- `lfm3.js` 0410962f706ec593625d4c1d6a746e29784ef8649dc15b4a966499153f2450b4
-- `pkg/lfm3_web.js` b2efc314076fcaeebd63350da1b51cec49b3ee6fad070905863befa55509a8b4
-- `pkg/lfm3_web_bg.wasm` 69ede454dbd65afa7c79524cdecdace7aaf78f5f0c3749b6db9d84f7ed32f4ac
+sha256:
+- `lfm3.js` 84b4cd0c82b6638b01a4faec7fad09ab79969245837007c3f7c9d0588353161f
+- `pkg/lfm3_web.js` 64f0858d7a4fdd70bb8ea64364c7c53b0bbab5c37dbacccd40cfa92c7327f9ea
+- `pkg/lfm3_web_bg.wasm` 477b79ed6bbddef04b8c88fa01109c139057a598497d3a42cd7c7ce8c8901690
 
 Keep `pkg/` next to `lfm3.js`. `init()` resolves the .wasm from `pkg/lfm3_web.js`'s own URL, and Vite emits it as an asset. Pass `wasmUrl` to `from_pretrained` only if the .wasm moves.
 

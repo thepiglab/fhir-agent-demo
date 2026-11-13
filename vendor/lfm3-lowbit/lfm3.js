@@ -285,7 +285,7 @@ class ChatSession {
 }
 
 // localStorage key for the tuned prefill kernel: this runtime build x this GPU
-const RUNTIME_TAG = 'lfm3-lowbit-2';
+const RUNTIME_TAG = 'lfm3-lowbit-3';
 async function kernelKey() {
   try {
     const a = await navigator.gpu?.requestAdapter(); const i = a?.info;
@@ -312,10 +312,18 @@ export class Lfm3ForCausalLM {
     // the prefill kernel tuned on an earlier load on this GPU (tuning times a pass of each candidate)
     const kkey = await kernelKey();
     let hint = null; try { hint = kkey && localStorage.getItem(kkey); } catch {}
-    const engine = await Engine.load((off, len) => { if (signal?.aborted) return Promise.reject(abortError(signal)); return reader.read(off, len); },
+    const load = (h) => Engine.load((off, len) => { if (signal?.aborted) return Promise.reject(abortError(signal)); return reader.read(off, len); },
       reader.size(), options.maxLength ?? 32768,
       (done, total) => onProgress({ status: 'weights', kind: 'tensors', loaded: done, total, fraction: total ? done / total : null }),
-      hint || undefined);
+      h || undefined);
+    let engine;
+    try { engine = await load(hint); }
+    catch (e) {
+      // a remembered kernel that now fails the load-time self-check: forget it and tune all candidates
+      if (!hint || !String(e?.message ?? e).includes('self-check')) throw e;
+      try { localStorage.removeItem(kkey); } catch {}
+      engine = await load(null);
+    }
     try { if (kkey) localStorage.setItem(kkey, engine.prefill_kernel()); } catch {}
     onProgress({ status: 'ready', message: 'ready' });
     return new Lfm3ForCausalLM(engine, { load_ms: performance.now() - t0, file_bytes: reader.size() });
