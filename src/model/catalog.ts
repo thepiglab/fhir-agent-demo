@@ -9,7 +9,9 @@
 // Memory is GPU memory while the model runs at the demo's 16,384-token context. Each figure says how it was
 // measured; they are measured numbers, not estimates.
 //
-// HF_COMMIT_V3 and HF_COMMIT_LOWBIT are placeholders for the Hugging Face commits of the uploads. An option
+// HF_COMMIT_V3 is a placeholder for the Hugging Face commit of the v3 upload, which holds all four files
+// (staged on HPG in /blue/cai5731/wkieffer/fhir/demo/release-v0235-r32-s200-v3/, SHA256SUMS-all). All four
+// names carry "-v3-", so the version check sees one version; the picker chooses by file. An option
 // whose pin is still a placeholder is shown as "not uploaded yet" and cannot be chosen, except in the dev
 // server (where ?model= or a local models/ copy can stand in).
 import type { PromptLayout } from '../chart/prompt.ts';
@@ -63,26 +65,28 @@ export const MODEL_OPTIONS: readonly ModelOption[] = [
   },
   {
     id: 'q3', bits: '3-bit', quant: 'Q3_K',
-    spec: `${HF}@HF_COMMIT_LOWBIT/LFM3-FHIR-demo-v3-Q3_K.gguf`,
-    file: { sha256: 'PENDING', bytes: 949_000_000 },
+    spec: `${HF}@HF_COMMIT_V3/LFM3-FHIR-demo-v3-3bit-Q3_K-QAD.gguf`,
+    file: { sha256: '35de540ae3c0746e73effdec9c9ff4e1244b5b4dc6275d729b25b6395771e2ec', bytes: 881_761_120 },
     runtime: 'lowbit', harness: 'Lc', layout: 'v0.2.3.4', sampling: SAMPLING,
+    // Lc 0.596 and 0.593 were measured on the non-e4 Q3_K-m4-fd4 / Q2_K-m4-fd3 siblings (949 / 823 MB); the
+    // e4 files' own evals replace them when done (Q2_K e4: job 51186131).
     score: 0.596, quality: `${pct(0.596)} on held-out questions (full precision: ${pct(BF16_SCORE)})`,
     memory: { bytes: 1_430_000_000, how: B200 },
-    quantization: 'Q3_K mix (Q3_K-m4-fd4), trained with quantization-aware distillation; runs on the lowbit WebGPU runtime with the weights packed in GPU memory',
+    quantization: 'Q3_K mix (Q3_K-m4-fd4, e4 embedding), trained with quantization-aware distillation; runs on the lowbit WebGPU runtime with the weights packed in GPU memory',
   },
   {
     id: 'q2', bits: '2-bit', quant: 'Q2_K',
-    spec: `${HF}@HF_COMMIT_LOWBIT/LFM3-FHIR-demo-v3-Q2_K.gguf`,
-    file: { sha256: 'PENDING', bytes: 823_000_000 },
+    spec: `${HF}@HF_COMMIT_V3/LFM3-FHIR-demo-v3-2bit-Q2_K-QAD.gguf`,
+    file: { sha256: '2e202365c52e52a70f401771dcabb1cfd2dc242641302334cb85cc81a618cdf5', bytes: 754_948_960 },
     runtime: 'lowbit', harness: 'Lc', layout: 'v0.2.3.4', sampling: SAMPLING,
     score: 0.593, quality: `${pct(0.593)} on held-out questions (full precision: ${pct(BF16_SCORE)})`,
     memory: { bytes: 1_300_000_000, how: `${B200}. On an Apple M1 Max the engine's GPU buffers were 1.03 GB` },
-    quantization: 'Q2_K mix (Q2_K-m4-fd3), trained with quantization-aware distillation; runs on the lowbit WebGPU runtime with the weights packed in GPU memory',
+    quantization: 'Q2_K mix (Q2_K-m4-fd3, e4 embedding), trained with quantization-aware distillation; runs on the lowbit WebGPU runtime with the weights packed in GPU memory',
   },
   {
     id: 'ternary', bits: 'Ternary', quant: 'Q2_0',
-    spec: `${HF}@HF_COMMIT_LOWBIT/LFM3-FHIR-demo-v3-Q2_0.gguf`,
-    file: { sha256: 'PENDING', bytes: 634_000_000 },
+    spec: `${HF}@HF_COMMIT_V3/LFM3-FHIR-demo-v3-ternary-Q2_0-QAD.gguf`,
+    file: { sha256: '961eb8cf1a5d7227e8521b7b3822e724eabe05dc9042fa8d2527ed0e9a380e8a', bytes: 634_329_952 },
     runtime: 'lowbit', harness: 'Lc', layout: 'v0.2.3.4', sampling: SAMPLING,
     score: 0.534, quality: `Experimental, the smallest: ${pct(0.534)} on held-out questions, below the demo's quality bar`,
     memory: { bytes: 1_170_000_000, how: B200 },
