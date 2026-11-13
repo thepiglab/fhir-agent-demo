@@ -198,14 +198,20 @@ function fileFetch(file: File): (url: string, init?: RequestInit) => Promise<Res
 }
 
 // Load the model. onProgress gets {phase: 'download'|'gpu'|'other', loaded, total, message}.
-export async function load({ url, file = null, onProgress = () => {} }: {
+export async function load({ url, file = null, onProgress = () => {}, onActivity = () => {}, signal }: {
   url: string;
   file?: File | null;
   onProgress?: (progress: Progress) => void;
+  /** Called whenever the load makes headway: a progress event or bytes arriving (the stall watchdog). */
+  onActivity?: () => void;
+  /** Aborts the load (its fetches; the runtime stops at its next read). */
+  signal?: AbortSignal;
 }): Promise<Model> {
   const options: LoadOptions = {
     maxLength: contextTokens(),
+    signal,
     onProgress: (p: LoadProgress) => {
+      onActivity();
       if (p.status === 'weights' && p.kind === 'bytes') onProgress({ phase: 'download', loaded: p.loaded, total: p.total, message: p.message });
       else if (p.status === 'weights' && p.kind === 'tensors') onProgress({ phase: 'gpu', loaded: p.loaded, total: p.total, message: p.message });
       else onProgress({ phase: 'other', message: p.message });
@@ -221,6 +227,9 @@ export async function load({ url, file = null, onProgress = () => {} }: {
   }
   if (activeRuntime() === 'lowbit') {
     await cacheAtVendoredVersion();
+    // Watch the bytes themselves: they show headway between the runtime's progress events, and the
+    // signal reaches every range request.
+    options.fetch = watchedFetch(options.fetch ?? globalThis.fetch.bind(globalThis), onActivity, signal);
     const lowbit = await import('../../vendor/lfm3-lowbit/lfm3.js');
     return lowbit.Lfm3ForCausalLM.from_pretrained(source, options);
   }
@@ -243,4 +252,18 @@ function cacheAtVendoredVersion(): Promise<void> {
     req.onsuccess = () => { req.result.close(); resolve(); };
     req.onerror = req.onblocked = () => resolve();  // a newer version, or open elsewhere: leave it to the runtime
   });
+}
+
+/** `fetchFn` with `signal` added to every request, calling `onActivity` as each response's bytes arrive. */
+function watchedFetch(
+  fetchFn: (input: string, init?: RequestInit) => Promise<Response>, onActivity: () => void, signal?: AbortSignal,
+): (input: string, init?: RequestInit) => Promise<Response> {
+  return async (input, init = {}) => {
+    const signals = [init.signal, signal].filter((x): x is AbortSignal => !!x);
+    const res = await fetchFn(input, { ...init, signal: signals.length > 1 ? AbortSignal.any(signals) : signals[0] });
+    onActivity();
+    if (!res.body) return res;
+    const counted = res.body.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({ transform(chunk, out) { onActivity(); out.enqueue(chunk); } }));
+    return new Response(counted, { status: res.status, statusText: res.statusText, headers: res.headers });
+  };
 }

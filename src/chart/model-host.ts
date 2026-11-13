@@ -35,6 +35,7 @@ export function loadErrorText(error: unknown): string {
   const name = error instanceof Error ? error.name : '';
   const lower = raw.toLowerCase();
   const say = (text: string) => `${text} (${raw.slice(0, 200)})`;
+  if (name === 'StallError') return raw;
   if (name === 'QuotaExceededError' || /quota|storage.*full|no space/.test(lower)) {
     return say('This browser has no room to store the model (about 1.1 GB). Free some disk space, or allow this site more storage, and try again.');
   }
@@ -174,22 +175,49 @@ let current: Model | null = null;
 let loading: Promise<Model> | null = null;
 let deciding: Promise<Model | null> | null = null;
 
+/** A load with no headway (no progress event, no bytes) for this long is stopped and reported. */
+export const STALL_MS = 60_000;
+export class StallError extends Error {
+  constructor() {
+    super(`The download stopped: nothing arrived for ${STALL_MS / 1000} seconds. Check the connection and try again; what was already downloaded is kept.`);
+    this.name = 'StallError';
+  }
+}
+
 function begin(file: File | null): Promise<Model> {
   const previous = loading;
   const t0 = performance.now();
+  const abort = new AbortController();
+  let lastActivity = Number.POSITIVE_INFINITY;  // the clock starts once an earlier load has settled
+  const touch = () => { lastActivity = performance.now(); };
   publish({ state: 'loading', phase: 'other', loaded: 0, total: null, message: file ? `Reading ${file.name}` : 'Starting' });
   const run = (async () => {
     if (previous) await previous.catch(() => null);
+    touch();
     if (current) { await current.dispose(); current = null; }
     if (file) origin = { from: 'file', fileName: file.name };
     else origin = { from: (await storedNow()) > 0 ? 'cache' : 'network' };
     return load({
       url: source.url,
       file,
+      signal: abort.signal,
+      onActivity: touch,
       onProgress: (p) => publish({ state: 'loading', phase: p.phase, loaded: p.loaded ?? 0, total: p.total ?? null, message: p.message }),
     });
   })();
-  const tracked: Promise<Model> = run.then((model) => {
+  // The watchdog: a load that makes no headway for STALL_MS is aborted and fails, so the page offers
+  // Try again instead of waiting forever. A model that arrives after that is let go.
+  let timer: ReturnType<typeof setInterval> | undefined;
+  const stalled = new Promise<never>((_, reject) => {
+    timer = setInterval(() => {
+      if (performance.now() - lastActivity < STALL_MS) return;
+      clearInterval(timer);
+      abort.abort(new StallError());
+      reject(new StallError());
+    }, 2_000);
+  });
+  run.then((model) => { if (abort.signal.aborted) void model.dispose(); }, () => {}).finally(() => clearInterval(timer));
+  const tracked: Promise<Model> = Promise.race([run, stalled]).then((model) => {
     current = model;
     // The swap: once this version is ready, delete what it replaces (an older version or pin).
     if (!file && !overridden && /^https?:/.test(source.url)) pruneStale(source.url).then((gone) => { if (gone.length) publish(status); }).catch(() => {});

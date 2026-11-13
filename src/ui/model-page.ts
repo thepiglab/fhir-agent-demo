@@ -99,28 +99,36 @@ function renderModels(host: Host): void {
   const options = MODEL_OPTIONS.filter(choosable);
   if (host.overridden || probed?.found.state === 'unsupported' || options.length < 2) { box.hidden = true; return; }
   box.hidden = false;
+  // Each card: the name, the download and one tag. Memory, quality and runtime sit behind "Compare sizes".
   const cards = options.map((o) => {
     const v = optionView(o);
     const saved = fullyStored(o, savedBytes.get(o.id) ?? 0);
     const input = h('input', {
       type: 'radio', name: 'lp-model', value: o.id, class: 'sr-only', 'aria-label': v.label,
-      'aria-describedby': `lp-model-${o.id}-details`,
+      'aria-describedby': `lp-model-${o.id}-more`,
       onchange: () => { chosen = o; setChosenModelId(o.id); renderModels(host); renderCta(host); },
     });
     input.checked = o.id === chosen.id;
-    return h('label', { class: 'lp-model' + (o.id === chosen.id ? ' on' : '') },
+    return h('label', { class: 'lp-model' + (o.id === chosen.id ? ' on' : ''), title: `${v.memory} to run · ${v.quality}` },
       input,
-      h('span', { class: 'lp-model-head' },
-        h('strong', null, v.title),
-        h('span', { class: 'lp-model-quant' }, v.quant),
-        v.badges.map((b) => h('span', { class: 'badge ' + (b.kind === 'recommended' ? 'accent' : 'warn'), title: b.title ?? null }, b.label))),
-      h('span', { class: 'lp-model-body', id: `lp-model-${o.id}-details` },
-        h('span', null, `${v.download} · `, h('span', { title: v.memoryHow }, v.memoryShort)),
-        h('span', { title: v.qualityNote ?? v.quality }, v.qualityShort),
-        v.qualityNote ? h('span', { class: 'sr-only' }, v.qualityNote) : null,
-        saved ? h('span', { class: 'lp-model-saved' }, svg(ICON.check), 'Saved in this browser') : null));
+      h('strong', { class: 'lp-model-name' }, v.title),
+      h('span', { class: 'lp-model-size' }, saved ? h('span', { class: 'lp-model-saved' }, svg(ICON.check), 'Saved') : v.download),
+      v.tag ? h('span', { class: 'lp-model-tag ' + v.tag.kind, title: v.tag.title ?? null }, v.tag.label) : null);
   });
-  fill(box, h('legend', { class: 'lp-models-legend' }, 'Choose a model size'), h('div', { class: 'lp-models-grid' }, cards));
+  const wasOpen = box.querySelector<HTMLDetailsElement>('.lp-models-more')?.open ?? false;
+  const more = h('details', { class: 'lp-models-more' },
+    h('summary', null, 'Compare sizes'),
+    h('ul', null, options.map((o) => {
+      const v = optionView(o);
+      return h('li', { id: `lp-model-${o.id}-more` },
+        h('strong', null, v.title), ' ',
+        h('span', { title: v.memoryHow }, `${v.memoryShort} to run`), ' · ',
+        h('span', { title: v.qualityNote ?? null }, v.qualityShort), ' · ', v.runtime);
+    })),
+    options.some((o) => o.scoreSource) ? h('p', null, '* Measured on the same weights with a 6-bit embedding; these files use a 4-bit one.') : null,
+    h('p', null, 'GPU memory is measured while the model runs; on a Mac it is shared with the rest of the system.'));
+  more.open = wasOpen;
+  fill(box, h('legend', { class: 'lp-models-legend' }, 'Choose a model size'), h('div', { class: 'lp-models-grid' }, cards), more);
 }
 
 async function landing(): Promise<void> {
