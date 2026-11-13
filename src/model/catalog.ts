@@ -43,6 +43,8 @@ export interface ModelOption {
   memory: { bytes: number; how: string };
   /** Below the demo's quality bar: shown, but labelled experimental. */
   experimental?: boolean;
+  /** The one option that is best to use right now: badged "Recommended", with this reason on hover. */
+  recommended?: { reason: string };
   /** Facts shown next to the model (overrides of config.ts's MODEL_FACTS). */
   quantization: string;
 }
@@ -61,6 +63,11 @@ export const MODEL_OPTIONS: readonly ModelOption[] = [
     spec: `${HF}@HF_COMMIT_V3/LFM3-FHIR-demo-v3-Q4_K_M.gguf`,
     file: { sha256: 'fc480a24f50fa2e6d14de1b8ad96c58f1baa3acb93e4a14d6ab6ccedd2a31297', bytes: 1_099_627_360 },
     runtime: 'vendored', harness: 'Lc', layout: 'v0.2.3.4', sampling: SAMPLING,
+    // 4-bit for now: on an M1 Max in Chromium the lowbit runtime reads prompts at about 150 tok/s, so a
+    // tool result of a few thousand tokens costs tens of seconds a turn, and it decodes slower there too
+    // (105 vs 127 tok/s for 2-bit); quality is a tie (Lc 0.593 for 2-bit vs 0.586). Move this to 2-bit once
+    // the lowbit runtime's batched prefill lands and the Mac re-test confirms it.
+    recommended: { reason: 'Fastest in the browser today; the smaller models match its accuracy but read long tool results more slowly.' },
     score: 0.586, quality: `${pct(0.586)} on held-out questions (full precision: ${pct(BF16_SCORE)})`,
     memory: { bytes: 1_714_000_000, how: 'Peak WebGPU buffer bytes (1,714 MB; 1,570 MB after load) in Chrome on an Apple M1 Max, vendored runtime, the same-size SFT v0.7 Q4_K_M at the bench page\'s context' },
     quantization: 'llama.cpp Q4_K_M (stock tensor layout, which the vendored WebGPU runtime requires), decoded with repetition penalty 1.1',
@@ -98,12 +105,14 @@ export const MODEL_OPTIONS: readonly ModelOption[] = [
   },
 ];
 
-/**
- * The option a first visit gets. 4-bit until the 2-bit file is on Hugging Face: Q2_K keeps quality
- * (59.3% vs 58.6%) at three-quarters of the download and less GPU memory, so it should become the default
- * once uploaded and checked in a real browser.
- */
-export const DEFAULT_MODEL_ID: ModelOptionId = 'q4';
+/** The recommended option (exactly one has `recommended`). */
+export const RECOMMENDED: ModelOption = (() => {
+  const found = MODEL_OPTIONS.filter((o) => o.recommended);
+  if (found.length !== 1) throw new Error(`catalog.ts: exactly one option must be recommended, found ${found.length}`);
+  return found[0]!;
+})();
+/** The option a first visit gets: the recommended one. Set it apart here only to default to something else. */
+export const DEFAULT_MODEL_ID: ModelOptionId = RECOMMENDED.id;
 
 export const isModelOptionId = (v: unknown): v is ModelOptionId => MODEL_OPTIONS.some((o) => o.id === v);
 export const modelOption = (id: ModelOptionId): ModelOption => MODEL_OPTIONS.find((o) => o.id === id)!;

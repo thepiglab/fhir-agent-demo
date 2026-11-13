@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { BF16_SCORE, DEFAULT_MODEL_ID, MODEL_OPTIONS, modelOption, selectedOption, uploaded } from '../src/model/catalog.ts';
+import { BF16_SCORE, DEFAULT_MODEL_ID, RECOMMENDED, MODEL_OPTIONS, modelOption, selectedOption, uploaded } from '../src/model/catalog.ts';
 import { replaces, variantKey } from '../src/model/versions.ts';
 
 const hf = (commit: string, file: string) => `https://huggingface.co/mkieffer/LFM3-FHIR-demo-v1/resolve/${commit}/${file}`;
@@ -20,6 +20,12 @@ describe('model picker catalog', () => {
     expect([...sizes].sort((a, b) => b - a)).toEqual(sizes);
     expect(new Set(MODEL_OPTIONS.map((o) => variantKey(o.spec))).size).toBe(MODEL_OPTIONS.length);
     expect(modelOption('ternary').experimental).toBe(true);
+  });
+
+  it('recommends exactly one option, 4-bit for now, and defaults to it', () => {
+    expect(MODEL_OPTIONS.filter((o) => o.recommended).map((o) => o.id)).toEqual(['q4']);
+    expect(RECOMMENDED.recommended!.reason).toMatch(/^Fastest in the browser today/);
+    expect(DEFAULT_MODEL_ID).toBe(RECOMMENDED.id);
   });
 
   it('runs the default unless the URL or a saved choice names an option', () => {

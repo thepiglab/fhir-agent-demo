@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
 import { app } from '../../app/state.ts';
 import { chooseModel, fmtBytes, fmtSize, optionStates, removeOption } from '../../app/model-gate.ts';
 import type { OptionState } from '../../app/model-gate.ts';
-import { DEFAULT_MODEL_ID, choosable, uploaded } from '../../model/catalog.ts';
+import { choosable, uploaded } from '../../model/catalog.ts';
 import type { ModelOption } from '../../model/catalog.ts';
 import { useModel } from './useModel.ts';
 
@@ -55,7 +55,7 @@ export function ModelPicker({ className }: { className?: string }) {
                   <span className="font-medium">{o.bits}</span>
                   <span className="text-xs text-muted-foreground">{o.quant}</span>
                   <span className="ml-auto flex gap-1">
-                    {o.id === DEFAULT_MODEL_ID && <Badge variant="secondary">Recommended</Badge>}
+                    {o.recommended && <Badge variant="secondary" title={o.recommended.reason} aria-label={`Recommended: ${o.recommended.reason}`}>Recommended</Badge>}
                     {o.experimental && <Badge variant="outline">Experimental</Badge>}
                   </span>
                 </div>
